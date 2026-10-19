@@ -21,6 +21,9 @@ const idMark = () => marks()[0];
 const card = () => document.querySelector<HTMLElement>('.mark-card');
 const cardButtons = () => [...(card()?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
 const btnByText = (part: string) => cardButtons().find((b) => b.textContent?.includes(part));
+/** The two action buttons, found by their main label (the word is on the second line of each). */
+const keepBtn = () => btnByText('以後都不要隱藏');
+const hideBtn = () => btnByText('以後都要隱藏');
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hover = (m: HTMLElement) => m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 const leave = (m: HTMLElement, to: EventTarget | null = null) => m.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: to }));
@@ -39,8 +42,10 @@ describe('hover card on a mark', () => {
     hover(idMark());
     expect(card()).not.toBeNull();
     expect(card()!.textContent).toContain(`原文：${ID}`);
-    expect(btnByText('這不是個資，以後都不要隱藏『A123456789』')).toBeTruthy();
-    expect(btnByText('這是個資，以後都要隱藏『A123456789』')).toBeTruthy();
+    expect(keepBtn()!.textContent).toContain('不是個資 → 以後都不要隱藏『A123456789』會加入白名單，保留原文');
+    expect(hideBtn()!.textContent).toContain('是個資 → 以後都要隱藏『A123456789』會加入黑名單，每次都隱藏');
+    expect(keepBtn()!.querySelector('.mark-card-word')!.getAttribute('title')).toBe(ID);
+    expect(hideBtn()!.querySelector('svg')).not.toBeNull();
     expect(card()!.querySelector('.mark-card-note')!.textContent).toContain('白名單＝永遠不隱藏的詞；黑名單＝永遠要隱藏的詞。可在『進階設定』查看或刪除。');
     expect(card()!.querySelector<HTMLButtonElement>('.mark-card-link')!.textContent).toBe('進階設定');
   });
@@ -68,7 +73,7 @@ describe('hover card on a mark', () => {
   it('這不是個資 adds the word to 不要隱藏的詞, re-detects, and the mark goes away', async () => {
     const view = await loaded();
     hover(idMark());
-    btnByText('這不是個資，以後都不要隱藏『A123456789』')!.click();
+    keepBtn()!.click();
     expect(lists().whitelist).toEqual([ID]);
     expect(card()).toBeNull();
     expect(marks()).toHaveLength(0);
@@ -79,12 +84,12 @@ describe('hover card on a mark', () => {
   it('這是個資 adds the word to 一定要隱藏的詞 with the item category, and then shows the state', async () => {
     await loaded();
     hover(idMark());
-    btnByText('這是個資，以後都要隱藏『A123456789』')!.click();
+    hideBtn()!.click();
     expect(lists().blacklist).toEqual([{ word: ID, category: '身分證' }]);
     expect(marks()).toHaveLength(1);
     expect(document.body.textContent).toContain('已加入『一定要隱藏的詞』（黑名單）');
     hover(idMark());
-    expect(btnByText('這是個資，以後都要隱藏')).toBeUndefined();
+    expect(hideBtn()).toBeUndefined();
     expect(card()!.querySelector('.mark-card-state')!.textContent).toBe('✓ 已在一定要隱藏的詞');
   });
 
@@ -94,7 +99,7 @@ describe('hover card on a mark', () => {
     [...document.querySelectorAll<HTMLButtonElement>('.add-popup button')].find((b) => b.textContent === '取消隱藏')!.click();
     expect(document.querySelector('.preview .cancelled')).not.toBeNull();
     hover(document.querySelector<HTMLElement>('.preview .cancelled')!);
-    btnByText('這是個資，以後都要隱藏『A123456789』')!.click();
+    hideBtn()!.click();
     expect(document.querySelector('.preview .cancelled')).toBeNull();
     expect(marks()).toHaveLength(1);
   });
@@ -112,7 +117,7 @@ describe('hover card on a mark', () => {
     m.focus();
     expect(card()).not.toBeNull();
     m.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    expect(document.activeElement).toBe(btnByText('這不是個資，以後都不要隱藏『A123456789』'));
+    expect(document.activeElement).toBe(keepBtn());
   });
 
   it('a first tap only opens the card; a second tap on the same mark opens the popup', async () => {

@@ -9,7 +9,7 @@
  */
 import type { RedactionItem } from '../core/types';
 import { getWordLists, wordProblem } from '../core/word-lists';
-import { button, el } from './components';
+import { el } from './components';
 
 export interface MarkCardHandlers {
   /** The item behind a marked element (its data-id), or undefined. */
@@ -83,11 +83,56 @@ function place(card: HTMLElement, rect: DOMRect): void {
   card.style.left = `${left}px`;
 }
 
-/** One list action: the button, or the state when the word is already on that list. */
-function listAction(label: string, inList: boolean, stateText: string, onClick: () => void): HTMLElement {
-  return inList
-    ? el('span', { class: 'mark-card-state' }, `✓ ${stateText}`)
-    : button(label, onClick, 'btn btn-small mark-card-btn');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** An inline SVG icon (no external assets). The path data is drawn with currentColor strokes. */
+function icon(paths: string[]): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.setAttribute('class', 'mark-card-icon');
+  for (const d of paths) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+  }
+  return svg;
+}
+
+const ICON_KEEP = [
+  'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', // a circle: "this is fine, keep it"
+  'M8 12.5l2.7 2.7L16 9.5', // a check mark
+];
+const ICON_HIDE = [
+  'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z', // an eye: visible text
+  'M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
+  'M4 4l16 16', // with a slash: hide it
+];
+
+/** One list action as a large two-line button: a bold main label and a secondary line naming the word. */
+function actionButton(kind: 'keep' | 'hide', word: string, onClick: () => void): HTMLElement {
+  const keep = kind === 'keep';
+  const main = keep ? '不是個資 → 以後都不要隱藏' : '是個資 → 以後都要隱藏';
+  const sub = keep ? '會加入白名單，保留原文' : '會加入黑名單，每次都隱藏';
+  return el('button', {
+    type: 'button',
+    class: `mark-card-action mark-card-action-${kind}`,
+    'data-action': kind,
+    onClick: () => onClick(),
+  },
+    el('span', { class: 'mark-card-action-main' }, icon(keep ? ICON_KEEP : ICON_HIDE), el('span', { class: 'mark-card-action-label' }, main)),
+    el('span', { class: 'mark-card-action-sub' },
+      el('span', { class: 'mark-card-word', title: word },
+        '『', el('span', { class: 'mark-card-word-text' }, word), '』'),
+      el('span', { class: 'mark-card-action-rest' }, sub),
+    ),
+  );
+}
+
+/** The state when the word is already on that list: a muted, confirmed chip (not a button). */
+function listState(stateText: string): HTMLElement {
+  return el('span', { class: 'mark-card-state' }, `✓ ${stateText}`);
 }
 
 function buildCard(item: RedactionItem): HTMLElement {
@@ -107,8 +152,8 @@ function buildCard(item: RedactionItem): HTMLElement {
     problem
       ? el('p', { class: 'field-error small' }, `這段文字無法加入詞表：${problem}`)
       : el('div', { class: 'mark-card-actions' },
-          listAction(`這不是個資，以後都不要隱藏『${word}』`, inWhite, '已在不要隱藏的詞', () => h.keepWord(item)),
-          listAction(`這是個資，以後都要隱藏『${word}』`, inBlack, '已在一定要隱藏的詞', () => h.hideWord(item)),
+          inWhite ? listState('已在不要隱藏的詞') : actionButton('keep', word, () => h.keepWord(item)),
+          inBlack ? listState('已在一定要隱藏的詞') : actionButton('hide', word, () => h.hideWord(item)),
         ),
     el('p', { class: 'muted small mark-card-note' },
       '白名單＝永遠不隱藏的詞；黑名單＝永遠要隱藏的詞。可在『',

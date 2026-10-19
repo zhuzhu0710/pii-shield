@@ -20,6 +20,10 @@
   --rust: #a8402c;
   --rust-bg: #f8e7e3;
   --focus-ring: #1f5c57;
+  /* The two word-list actions on the mark card: calm teal (keep) and warm orange (hide). */
+  --keep-bg: #e2f5ef; --keep-hover: #cdeee2; --keep-line: #1f7a68; --keep-ink: #0b4a40; --keep-ink-soft: #235c52;
+  --hide-bg: #fdeadf; --hide-hover: #f9d8c4; --hide-line: #c24a14; --hide-ink: #6f2706; --hide-ink-soft: #7a3110;
+  --done-bg: #eef2f0; --done-line: #a9b8b2; --done-ink: #33413d;
 
   --font-display: 'Noto Serif TC', 'Source Han Serif TC', 'Songti TC', 'Noto Serif CJK TC', serif;
   --font-body: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -423,9 +427,38 @@ button.step-button:hover .step-label { color: var(--pine); text-decoration: unde
 .mark-card-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.2rem 0.5rem; }
 .mark-card-original { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
 .mark-card-line { margin: 0.3rem 0 0; overflow-wrap: anywhere; }
-.mark-card-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 0.6rem; }
-.mark-card-btn { max-width: 100%; white-space: normal; text-align: left; line-height: 1.5; overflow-wrap: anywhere; }
-.mark-card-state { font-size: 0.92rem; font-weight: 600; color: var(--pine); }
+.mark-card-actions { display: flex; flex-direction: column; align-items: stretch; gap: 0.5rem; margin-top: 0.7rem; min-width: 0; }
+.mark-card-action {
+  display: flex; flex-direction: column; align-items: stretch; gap: 0.25rem; width: 100%; min-width: 0;
+  min-height: 3.25rem; margin: 0; padding: 0.55rem 0.75rem; border: 2px solid; border-radius: 8px;
+  font: inherit; text-align: left; color: inherit; cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.08s;
+}
+.mark-card-action:active { transform: translateY(1px); }
+.mark-card-action:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.mark-card-action-keep { background: var(--keep-bg); border-color: var(--keep-line); color: var(--keep-ink); }
+.mark-card-action-keep .mark-card-action-sub { color: var(--keep-ink-soft); }
+.mark-card-action-keep:hover { background: var(--keep-hover); box-shadow: inset 0 0 0 1px var(--keep-line); }
+.mark-card-action-keep:active { background: var(--keep-hover); box-shadow: inset 0 2px 5px rgba(11, 74, 64, 0.16); }
+.mark-card-action-hide { background: var(--hide-bg); border-color: var(--hide-line); color: var(--hide-ink); }
+.mark-card-action-hide .mark-card-action-sub { color: var(--hide-ink-soft); }
+.mark-card-action-hide:hover { background: var(--hide-hover); box-shadow: inset 0 0 0 1px var(--hide-line); }
+.mark-card-action-hide:active { background: var(--hide-hover); box-shadow: inset 0 2px 5px rgba(111, 39, 6, 0.16); }
+.mark-card-action-main { display: flex; align-items: center; gap: 0.45rem; min-width: 0; font-size: 1rem; font-weight: 800; line-height: 1.4; }
+.mark-card-action-label { min-width: 0; overflow-wrap: anywhere; }
+.mark-card-icon {
+  flex: 0 0 auto; width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 2.2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.mark-card-action-sub { display: flex; align-items: baseline; min-width: 0; font-size: 0.85rem; font-weight: 500; line-height: 1.5; }
+.mark-card-word { display: inline-flex; min-width: 0; flex: 0 1 auto; white-space: nowrap; }
+.mark-card-word-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.mark-card-action-rest { flex: 0 0 auto; white-space: nowrap; }
+.mark-card-state {
+  display: flex; align-items: center; min-height: 2.5rem; padding: 0.4rem 0.75rem; box-sizing: border-box;
+  border: 1px dashed var(--done-line); border-radius: 8px; background: var(--done-bg); color: var(--done-ink);
+  font-size: 0.92rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere;
+}
 .mark-card-note { margin: 0.6rem 0 0; line-height: 1.7; }
 .mark-card-note .link-btn { font-size: inherit; padding: 0; }
 
