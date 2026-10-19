@@ -30,11 +30,19 @@ const OUTPUT_MODE_LABELS: Record<OutputMode, string> = { preview: '露出部分'
 
 /** 可還原 restores with the key file; the other two are for output that is never restored. */
 const MARKER_LABELS: Record<MarkerStyle, string> = { code: '可還原', label: '類別標記', blank: '空白佔位' };
-const MARKER_NOTES: Record<MarkerStyle, [string, string]> = {
-  code: ['王[姓名:6e679d]', '會產生還原鑰匙檔，之後可以換回原文'],
-  label: ['王[姓名]', '不產生還原鑰匙檔，之後無法還原'],
-  blank: ['王○○', '不產生還原鑰匙檔，保留原本的字數'],
+/** Each marker style on 王小明 and what it means in one plain line (shown on its button). */
+const MARKER_NOTES: Record<MarkerStyle, { example: string; detail: string }> = {
+  code: { example: '王[姓名:6e679d]', detail: '之後能用還原鑰匙檔換回原文' },
+  label: { example: '王[姓名]', detail: '只標出類別，之後無法還原' },
+  blank: { example: '王○○', detail: '用○填滿、保留字數，之後無法還原' },
 };
+
+/** The plain example under each 要露出多少 button, written for a name (the hidden part follows the marker style). */
+function keepExample(mode: OutputMode): string {
+  if (mode === 'preview') return '王●● 0912●●●●●●';
+  if (mode === 'custom') return '每類別各自設定';
+  return state.marker === 'blank' ? '王小明 → ○○○' : '王小明 → [姓名]';
+}
 
 /** Monospace fonts draw ○ as a small o: examples written with ○ use the text font. */
 const exampleClass = (cls: string, marker: MarkerStyle = state.marker): string => (marker === 'blank' ? cls : `mono ${cls}`);
@@ -68,10 +76,9 @@ interface State {
   disabledCategories: Set<Category>;
   /** The detection list is collapsed by default. */
   showList: boolean;
-  /** The output settings panel is collapsed to a one-line summary by default. */
-  panelOpen: boolean;
-  /** Its 依類別調整 and 進階 sections, open for the session once opened (open anyway under 自訂). */
+  /** The 依類別調整 section inside 進階設定, open for the session once opened (open anyway under 自訂). */
   categoriesOpen: boolean;
+  /** The 進階設定 disclosure, open for the session once opened (open anyway under 自訂). */
   advancedOpen: boolean;
   /** Every document shares one key book. */
   sharedCodes: boolean;
@@ -96,7 +103,6 @@ const state: State = {
   plainView: false,
   disabledCategories: new Set(),
   showList: false,
-  panelOpen: false,
   categoriesOpen: false,
   advancedOpen: false,
   sharedCodes: false,
@@ -600,21 +606,14 @@ function renderDownloadRows(root: HTMLElement, d: DocState): HTMLElement {
   return el('div', { class: 'download-rows' }, ...rows);
 }
 
-/** One plain sentence saying what the output does now; shown in 調整輸出方式 (no codes, no jargon). */
-function plainSetting(): string {
-  const shared = restorable() && state.sharedCodes ? '，整批共用同一組代號' : '';
-  if (state.outputMode === 'custom') return `目前設定：各類別分開設定${restorable() ? '，之後可以還原' : '，之後無法還原'}${shared}`;
-  if (!restorable()) return state.marker === 'blank' ? '目前設定：個資會換成 ○○○，之後無法還原' : '目前設定：個資會換成 [類別]，之後無法還原';
-  if (state.outputMode === 'code') return `目前設定：個資全部隱藏（例：身分證 ●●●●●●●●●●），之後可以還原${shared}`;
-  return `目前設定：個資會換成代號（例：身分證 A1●●●●），之後可以還原${shared}`;
-}
-
 function renderToolbar(root: HTMLElement): HTMLElement {
   const d = current();
   const doc = d.doc;
   const limits = formatLimitations(doc.format, doc.ocr);
   const many = state.docs.length > 1;
   const partialCats = [...new Set(d.items.filter((it) => it.active && isPartial(it)).map((it) => it.category))];
+  // The warning belongs to 露出部分 only; under the other modes the output keeps nothing readable by default.
+  const showPartial = state.outputMode === 'preview' && partialCats.length > 0;
   return el('div', { class: 'toolbar toolbar-stack' },
     el('div', { class: 'toolbar-row' },
       el('div', { class: 'file-info' },
@@ -631,8 +630,11 @@ function renderToolbar(root: HTMLElement): HTMLElement {
     ),
     el('div', { class: 'toolbar-row status-line muted small' },
       limits ? el('span', { class: 'status-info', 'data-tip': limits, tabindex: '0' }, '這個檔案的限制') : null,
-      partialCats.length
-        ? el('span', { class: 'status-partial notice notice-inline', 'data-tip': `露出的字會出現在下載的文件中，並非完全匿名（${partialCats.join('、')}）`, tabindex: '0' }, '⚠ 部分個資會露出前幾個字方便辨認，例如姓氏')
+      showPartial
+        ? el('span', { class: 'status-partial notice notice-inline', 'data-tip': `露出的字會出現在下載的文件中，並非完全匿名（${partialCats.join('、')}）`, tabindex: '0' },
+            '⚠ 部分個資會露出前幾個字方便辨認，例如姓氏',
+            button('改成全部隱藏', () => setOutputMode('code', root), 'btn btn-ghost btn-small status-partial-fix'),
+          )
         : null,
     ),
   );
@@ -745,17 +747,55 @@ function renderSummary(d: DocState): HTMLElement {
   );
 }
 
+/** One option of a choice row: a real button whose plain example sits under its title. */
+interface ChoiceOption<T extends string> {
+  value: T;
+  title: string;
+  detail?: string;
+  example: string;
+  mono?: boolean;
+}
+
+/** One labelled row of choice buttons; aria-pressed marks the current one, and each button is a single tab stop. */
+function choiceRow<T extends string>(id: string, label: string, options: ChoiceOption<T>[], current: T, onChange: (v: T) => void): HTMLElement {
+  return el('div', { class: 'output-row', 'data-row': id },
+    el('div', { class: 'output-row-label', id: `${id}-label` }, label),
+    el('div', { class: 'choice-grid', role: 'group', 'aria-labelledby': `${id}-label` },
+      ...options.map((o) => el('button', {
+        type: 'button',
+        class: 'choice',
+        'data-group': id,
+        'data-value': o.value,
+        'aria-pressed': o.value === current ? 'true' : 'false',
+        onClick: () => onChange(o.value),
+      },
+        el('span', { class: 'choice-title' }, o.title),
+        o.detail ? el('span', { class: 'choice-detail' }, o.detail) : null,
+        el('span', { class: `choice-example${o.mono ? ' mono' : ''}` }, o.example),
+      )),
+    ),
+  );
+}
+
+/** Changes how much stays visible: the preview and the summary follow at once, and the choice is remembered. */
+function setOutputMode(mode: OutputMode, root: HTMLElement): void {
+  state.outputMode = mode;
+  persistOutputPrefs();
+  applyOutputModeToAll();
+  render(root); // preview, toolbar status and partial-retention notice all change
+}
+
+/** One example line for the current choice, using the same example logic as before (a national ID number). */
+function liveExample(): string {
+  if (state.outputMode === 'custom') return '身分證等各類別分開設定（展開下方「進階設定」查看）';
+  return `身分證 ${modeExample(state.outputMode, state.marker)}`;
+}
+
 /**
- * The single place to decide what the output shows: how much stays visible, the marker style,
- * per-category settings, 設為預設, and the code scope. Collapsed to a one-line summary by default.
+ * The single place to decide what the output shows: how much stays visible and the marker style. Both choices
+ * are always on screen (no toggle); per-category settings, 設為預設 and the shared key scope sit under 進階設定.
  */
 function renderOutputPanel(root: HTMLElement): HTMLElement {
-  const setMode = (mode: OutputMode) => {
-    state.outputMode = mode;
-    persistOutputPrefs();
-    applyOutputModeToAll();
-    render(root); // preview, toolbar status and partial-retention notice all change
-  };
   // The output text changes, codes do not: every document needs downloading again.
   const setMarker = (marker: MarkerStyle) => {
     state.marker = marker;
@@ -763,17 +803,6 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     for (const d of state.docs) markDirty(d);
     render(root);
   };
-  /** One choice as a row of joined buttons (radios underneath, so keyboard use is unchanged). */
-  const segmented = <T extends string>(name: string, labels: Record<T, string>, current: T, onChange: (v: T) => void) =>
-    el('div', { class: 'segmented', role: 'radiogroup' },
-      ...(Object.keys(labels) as T[]).map((v) => {
-        const r = el('input', { type: 'radio', name, value: v }) as HTMLInputElement;
-        r.checked = current === v;
-        r.addEventListener('change', () => onChange(v));
-        return el('label', { class: 'segment' }, r, el('span', {}, labels[v]));
-      }),
-    );
-  const [markerExample, markerNote] = MARKER_NOTES[state.marker];
   const notices = [
     state.outputMode === 'preview' ? '露出部分會留下姓氏、證號前 2 碼、手機前 4 碼等，並非完全匿名' : '',
     restorable() ? '' : `不產生還原鑰匙檔，之後無法還原${state.marker === 'blank' ? '；空白佔位會保留原本的字數，需要更高的匿名性請選「類別標記」' : ''}`,
@@ -784,12 +813,6 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     return d;
   };
   const present = CATEGORIES.filter((c) => state.docs.some((d) => d.items.some((it) => it.category === c))).length;
-  const box = el('details', { class: 'output-panel', open: state.panelOpen }) as HTMLDetailsElement;
-  const action = el('span', { class: 'btn btn-small summary-action' }, state.panelOpen ? '收合' : '調整');
-  box.addEventListener('toggle', () => {
-    state.panelOpen = box.open;
-    action.textContent = box.open ? '收合' : '調整';
-  });
   const saveDefault = () => {
     let config = loadConfig();
     for (const [category, r] of state.overrides) config = setCategoryRetention(config, category, r);
@@ -808,28 +831,21 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     toast('已設為預設：之後選「自訂」會套用這些保留方式（可在「進階設定」頁各規則的「查看規則」中看到）', 'success', 5000);
     render(root);
   };
-  const children: (HTMLElement | null)[] = [
-    el('summary', { class: 'output-panel-summary', title: '調整要露出多少、標記方式、各類別與還原鑰匙檔的範圍' },
-      el('span', { class: 'summary-main' },
-        el('strong', {}, '調整輸出方式'),
-        el('span', { class: 'summary-detail small' }, plainSetting()),
-      ),
-      action,
-    ),
-    el('div', { class: 'output-rows' },
-      el('div', { class: 'output-row', 'data-row': 'keep' },
-        el('span', { class: 'output-row-label' }, '要露出多少'),
-        segmented('output-mode', OUTPUT_MODE_LABELS, state.outputMode, setMode),
-        el('span', { class: `output-row-note ${exampleClass('small muted')}` }, modeExample(state.outputMode, state.marker)),
-      ),
-      el('div', { class: 'output-row', 'data-row': 'marker' },
-        el('span', { class: 'output-row-label' }, '標記方式'),
-        segmented('marker-style', MARKER_LABELS, state.marker, setMarker),
-        el('span', { class: 'output-row-note small muted' }, el('span', { class: exampleClass('') }, markerExample), `　${markerNote}`),
-      ),
-    ),
-    notices.length ? el('p', { class: 'small notice notice-inline output-notice' }, `⚠ ${notices.join('；')}`) : null,
-    el('p', { class: 'muted small output-memory' }, '會記住你這次的選擇，下次自動套用'),
+  const keepOptions: ChoiceOption<OutputMode>[] = (Object.keys(OUTPUT_MODE_LABELS) as OutputMode[]).map((value) => ({
+    value,
+    title: OUTPUT_MODE_LABELS[value],
+    example: keepExample(value),
+    mono: value !== 'custom' && state.marker !== 'blank',
+  }));
+  const markerOptions: ChoiceOption<MarkerStyle>[] = (Object.keys(MARKER_LABELS) as MarkerStyle[]).map((value) => ({
+    value,
+    title: MARKER_LABELS[value],
+    detail: MARKER_NOTES[value].detail,
+    example: MARKER_NOTES[value].example,
+    mono: value !== 'blank',
+  }));
+  const advanced = el('details', { class: 'output-advanced', open: state.advancedOpen || state.outputMode === 'custom' },
+    el('summary', {}, '進階設定（依類別調整、多個檔案共用還原鑰匙）'),
     section('by-category', `依類別調整（${present} 類）`, state.outputMode === 'custom' || state.categoriesOpen, (open) => (state.categoriesOpen = open),
       renderCategoryTable(root),
       state.outputMode === 'custom'
@@ -839,10 +855,23 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
           )
         : null,
     ),
-    restorable() ? section('code-advanced', '進階：多個檔案共用還原鑰匙', state.advancedOpen, (open) => (state.advancedOpen = open), renderCodeScope(root)) : null,
-  ];
-  box.append(...children.filter((c): c is HTMLElement => c !== null));
-  return box;
+    restorable() ? el('div', { class: 'output-subsection' }, el('h4', {}, '多個檔案共用還原鑰匙'), renderCodeScope(root)) : null,
+  ) as HTMLDetailsElement;
+  advanced.addEventListener('toggle', () => (state.advancedOpen = advanced.open));
+  return el('section', { class: 'output-panel', 'aria-labelledby': 'output-panel-title' },
+    el('div', { class: 'output-panel-head' },
+      el('h3', { id: 'output-panel-title' }, '輸出方式（可隨時切換）'),
+      el('p', { class: 'muted small output-memory' }, '會記住你這次的選擇，下次自動套用'),
+    ),
+    choiceRow('output-mode', '要露出多少', keepOptions, state.outputMode, (mode) => setOutputMode(mode, root)),
+    choiceRow('marker-style', '標記方式', markerOptions, state.marker, setMarker),
+    el('p', { class: 'output-live' },
+      el('span', { class: 'muted small' }, '範例　'),
+      el('span', { class: `small ${exampleClass('')}` }, liveExample()),
+    ),
+    notices.length ? el('p', { class: 'small notice notice-inline output-notice' }, `⚠ ${notices.join('；')}`) : null,
+    advanced,
+  );
 }
 
 function renderCategoryTable(root: HTMLElement): HTMLElement {
