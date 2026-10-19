@@ -7,10 +7,11 @@ import { parseMapping, serializeMapping } from '../core/csv';
 import { getEffectivePatterns, loadConfig, saveConfig, setCategoryRetention } from '../core/pattern-store';
 import { addBlacklistWord, addWhitelistWord, getWordLists, setWordLists, wordListsKey, wordProblem } from '../core/word-lists';
 import { MODE_LABELS, checkRetention, describeRetention, modesFor, splitFor, type RetentionMode } from '../core/retention';
-import { loadOutputPrefs, saveOutputPrefs, type OutputMode } from '../core/output-prefs';
+import { hasSavedOutputPrefs, loadOutputPrefs, saveOutputPrefs, type OutputMode } from '../core/output-prefs';
 import { ACCEPT_ATTR, formatLimitations, generateDocument, mappingFileName, outputFileName, parseDocument } from '../formats';
 import { button, clear, downloadBlob, dropZone, el, rejectOversized, toast, withBusy } from './components';
 import { renderDocumentPreview, type Decoration } from './preview';
+import { installMarkCards } from './mark-card';
 import { MERGED_MAPPING_NAME, buildArchive } from '../formats/batch';
 import { SAMPLES, fetchSample, samplesSection } from './samples';
 import { ocrOverlay } from './ocr-overlay';
@@ -94,6 +95,10 @@ interface State {
   overrides: Map<Category, Retention>;
   /** Fingerprint of the patterns the loaded documents were last detected with. */
   patternKey: string;
+  /** The user has chosen output settings in this browser (saved, or chosen this session). False on a first visit. */
+  prefsAccepted: boolean;
+  /** The output card is expanded; collapsed it shows one line. Opens by itself on a first visit. */
+  panelOpen: boolean;
 }
 
 const state: State = {
@@ -112,6 +117,8 @@ const state: State = {
   marker: 'code',
   overrides: new Map(),
   patternKey: '',
+  prefsAccepted: false,
+  panelOpen: true,
 };
 
 /** Retention of the first enabled rule of a category (the 自訂 default before any override). */
@@ -209,11 +216,15 @@ function restoreOutputPrefs(): void {
   state.outputMode = prefs.outputMode;
   state.marker = prefs.marker;
   state.overrides = prefs.overrides;
+  // A first visit asks once (the card opens); after that the saved choice applies to every file, folded to one line.
+  state.prefsAccepted = hasSavedOutputPrefs();
+  state.panelOpen = !state.prefsAccepted;
 }
 
 /** Remembers the current output choices. The page keeps working when the browser refuses to store them. */
 function persistOutputPrefs(): void {
   saveOutputPrefs({ outputMode: state.outputMode, marker: state.marker, overrides: state.overrides });
+  state.prefsAccepted = true;
 }
 
 export function createProcessView(): HTMLElement {
@@ -791,11 +802,41 @@ function liveExample(): string {
   return `身分證 ${modeExample(state.outputMode, state.marker)}`;
 }
 
+/** A re-render replaces every element, so focus is put back on the control the user just used. */
+function renderThenFocus(root: HTMLElement, selector: string): void {
+  render(root);
+  root.querySelector<HTMLElement>(selector)?.focus();
+}
+
+/** Expands or folds the output card. Expanding focuses its first choice; folding focuses 變更 again. */
+function setPanelOpen(root: HTMLElement, open: boolean): void {
+  state.panelOpen = open;
+  renderThenFocus(root, open ? '.output-panel .choice' : '.output-summary-change');
+}
+
+/** Folded: one line with the current choice in plain words, and 變更 to open the full card. */
+function renderOutputSummary(root: HTMLElement): HTMLElement {
+  const change = button('變更', () => setPanelOpen(root, true), 'btn btn-small output-summary-change');
+  change.setAttribute('aria-expanded', 'false');
+  return el('section', { class: 'output-panel output-panel-folded', 'aria-label': '輸出方式' },
+    el('div', { class: 'output-summary' },
+      el('p', { class: 'output-summary-text' },
+        el('span', { class: 'output-summary-label' }, '輸出方式：'),
+        el('strong', {}, `${OUTPUT_MODE_LABELS[state.outputMode]}・${MARKER_LABELS[state.marker]}`),
+        restorable() ? null : el('span', { class: 'muted small' }, '（之後無法還原）'),
+      ),
+      change,
+    ),
+  );
+}
+
 /**
  * The single place to decide what the output shows: how much stays visible and the marker style. Both choices
- * are always on screen (no toggle); per-category settings, 設為預設 and the shared key scope sit under 進階設定.
+ * are on screen when the card is open; per-category settings, 設為預設 and the shared key scope sit under 進階設定.
+ * Folded (the usual case once chosen) it is one line; see renderOutputSummary.
  */
 function renderOutputPanel(root: HTMLElement): HTMLElement {
+  if (!state.panelOpen) return renderOutputSummary(root);
   // The output text changes, codes do not: every document needs downloading again.
   const setMarker = (marker: MarkerStyle) => {
     state.marker = marker;
@@ -858,11 +899,19 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     restorable() ? el('div', { class: 'output-subsection' }, el('h4', {}, '多個檔案共用還原鑰匙'), renderCodeScope(root)) : null,
   ) as HTMLDetailsElement;
   advanced.addEventListener('toggle', () => (state.advancedOpen = advanced.open));
+  // Saves the choice (a first visit has nothing saved yet) and folds the card back to its one line.
+  const done = button(state.prefsAccepted ? '完成' : '用這個設定', () => {
+    persistOutputPrefs();
+    setPanelOpen(root, false);
+  }, 'btn btn-primary btn-small');
   return el('section', { class: 'output-panel', 'aria-labelledby': 'output-panel-title' },
     el('div', { class: 'output-panel-head' },
       el('h3', { id: 'output-panel-title' }, '輸出方式（可隨時切換）'),
       el('p', { class: 'muted small output-memory' }, '會記住你這次的選擇，下次自動套用'),
     ),
+    state.prefsAccepted
+      ? null
+      : el('p', { class: 'output-intro' }, '第一次使用：請選擇輸出方式。選一次就好，之後每份文件都會自動沿用，隨時可以按『變更』修改。'),
     choiceRow('output-mode', '要露出多少', keepOptions, state.outputMode, (mode) => setOutputMode(mode, root)),
     choiceRow('marker-style', '標記方式', markerOptions, state.marker, setMarker),
     el('p', { class: 'output-live' },
@@ -871,6 +920,7 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     ),
     notices.length ? el('p', { class: 'small notice notice-inline output-notice' }, `⚠ ${notices.join('；')}`) : null,
     advanced,
+    el('div', { class: 'output-actions' }, done),
   );
 }
 
@@ -984,11 +1034,12 @@ function renderLowBar(preview: HTMLElement, d: DocState): HTMLElement {
 
 function renderPreview(preview: HTMLElement, refresh: () => void, root: HTMLElement): void {
   const d = current();
+  // No tip text: each mark opens its own card (ui/mark-card.ts), which describes the item.
   const decorations: Decoration[] = d.items.map((it) => {
     const low = it.confidence === 'low';
     return it.active
-      ? { start: it.start, end: it.end, id: it.id, kind: 'mark', label: previewLabel(it, state.marker), className: `mark-${it.category}${low ? ' mark-low' : ''}`, tip: low ? `${LOW_TIP}｜${tooltipFor(it)}` : tooltipFor(it) }
-      : { start: it.start, end: it.end, id: it.id, kind: 'cancelled', label: '', className: '', tip: `已取消，顯示原文（${it.category}）；點擊可重新隱藏` };
+      ? { start: it.start, end: it.end, id: it.id, kind: 'mark', label: previewLabel(it, state.marker), className: `mark-${it.category}${low ? ' mark-low' : ''}`, tip: '' }
+      : { start: it.start, end: it.end, id: it.id, kind: 'cancelled', label: '', className: '', tip: '' };
   });
   renderDocumentPreview(preview, d.doc, decorations, {
     plain: state.plainView,
@@ -999,14 +1050,18 @@ function renderPreview(preview: HTMLElement, refresh: () => void, root: HTMLElem
     },
   });
   preview.onmouseup = () => handleSelection(preview, refresh, root);
-  preview.onclick = (e) => {
-    const target = (e.target as Element | null)?.closest<HTMLElement>('[data-id]');
-    if (!target || !preview.contains(target)) return;
-    const sel = window.getSelection();
-    if (sel && !sel.isCollapsed) return; // a drag-selection, not a click
-    const item = d.items.find((it) => it.id === target.dataset.id);
-    if (item) showItemPopup(target.getBoundingClientRect(), item, refresh, root);
-  };
+  // Marks are reachable by Tab, so the card can open from the keyboard too.
+  preview.querySelectorAll<HTMLElement>('[data-id]').forEach((n) => n.setAttribute('tabindex', '0'));
+  installMarkCards(preview, {
+    itemFor: (id) => current().items.find((it) => it.id === id),
+    describe: (it) => [
+      it.active ? `隱藏後顯示：${outputFor(it, state.marker)}${it.origin === 'manual' ? '（手動新增）' : ''}` : '已取消隱藏，顯示原文；點擊標記可重新隱藏',
+      it.active && it.confidence === 'low' ? LOW_TIP : '',
+    ],
+    keepWord: (it) => keepWordFromCard(it, root),
+    hideWord: (it) => hideWordFromCard(it, root),
+    openPopup: (rect, it) => showItemPopup(rect, it, refresh, root),
+  });
 }
 
 function showItemPopup(rect: DOMRect, item: RedactionItem, done: () => void, root: HTMLElement): void {
@@ -1073,6 +1128,49 @@ function hideWordEverywhere(d: DocState, start: number, end: number, category: C
   popup.remove();
   toast(`已加入黑名單：之後「${word}」每次出現都會以「${category}」隱藏${stored ? '' : '（此瀏覽器無法保存，關閉分頁後會失效）'}`, stored ? 'success' : 'info', 6000);
   render(root);
+}
+
+/** The card's 這不是個資: cancels the item (when shown) and keeps its word on the whitelist, then re-detects. */
+function keepWordFromCard(item: RedactionItem, root: HTMLElement): void {
+  try {
+    if (item.active) toggleItem(current().items, item.id);
+  } catch (err) {
+    toast((err as Error).message, 'error');
+    return;
+  }
+  const stored = setWordLists(addWhitelistWord(getWordLists(), item.original));
+  rescanAll();
+  toast(`已加入『不要隱藏的詞』（白名單）${stored ? '' : '（此瀏覽器無法保存，關閉分頁後會失效）'}`, stored ? 'success' : 'info', 6000);
+  renderAfterCardAction(root);
+}
+
+/**
+ * The card's 這是個資: the word is hidden with the item's category wherever it occurs. Every occurrence counts,
+ * so ones cancelled earlier are shown hidden again (categories switched off in the table stay off).
+ */
+function hideWordFromCard(item: RedactionItem, root: HTMLElement): void {
+  const word = item.original.trim();
+  const stored = setWordLists(addBlacklistWord(getWordLists(), word, item.category));
+  rescanAll();
+  for (const d of state.docs) {
+    for (const it of d.items) {
+      if (it.active || it.original.trim() !== word || state.disabledCategories.has(it.category)) continue;
+      try {
+        toggleItem(d.items, it.id);
+      } catch {
+        // it now overlaps an active item: leave it cancelled
+      }
+    }
+    markDirty(d);
+  }
+  toast(`已加入『一定要隱藏的詞』（黑名單）${stored ? '' : '（此瀏覽器無法保存，關閉分頁後會失效）'}`, stored ? 'success' : 'info', 6000);
+  renderAfterCardAction(root);
+}
+
+/** The preview is rebuilt, so focus goes to it (not to a mark, which would open its card again). */
+function renderAfterCardAction(root: HTMLElement): void {
+  render(root);
+  root.querySelector<HTMLElement>('.preview')?.focus({ preventScroll: true });
 }
 
 function placePopup(popup: HTMLElement, rect: DOMRect, root: HTMLElement): void {

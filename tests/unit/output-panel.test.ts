@@ -103,6 +103,9 @@ describe('output settings', () => {
     choose(first, 'output-mode', 'code');
     choose(first, 'marker-style', 'label');
     const again = await loaded();
+    // Saved choices fold the card to one line; 變更 opens it with the same choices.
+    expect(again.querySelector('.output-panel-folded')).not.toBeNull();
+    again.querySelector<HTMLButtonElement>('.output-summary-change')!.click();
     expect(pressed(again, 'output-mode')).toEqual(['code']);
     expect(pressed(again, 'marker-style')).toEqual(['label']);
   });
@@ -130,3 +133,88 @@ describe('output settings', () => {
     expect(view.querySelector('.status-partial')).not.toBeNull();
   });
 });
+
+describe('folded output card', () => {
+  const summary = (view: HTMLElement) => view.querySelector('.output-summary-text')?.textContent;
+  const button = (view: HTMLElement, label: string) => [...view.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === label);
+
+  it('is expanded with a first-visit intro when nothing is saved', async () => {
+    const view = await loaded();
+    expect(view.querySelector('.output-panel-folded')).toBeNull();
+    expect(view.querySelector('.output-intro')!.textContent).toBe('第一次使用：請選擇輸出方式。選一次就好，之後每份文件都會自動沿用，隨時可以按『變更』修改。');
+    expect(button(view, '用這個設定')).toBeTruthy();
+    expect(button(view, '完成')).toBeUndefined();
+  });
+
+  it('用這個設定 saves the choice and folds the card', async () => {
+    const view = await loaded();
+    button(view, '用這個設定')!.click();
+    expect(savedPrefs()).toMatchObject({ version: 1, outputMode: 'preview', marker: 'code' });
+    expect(view.querySelector('.output-panel-folded')).not.toBeNull();
+    expect(view.querySelectorAll('button.choice')).toHaveLength(0);
+    expect(summary(view)).toBe('輸出方式：露出部分・可還原');
+  });
+
+  it('shows the intro only once: a later visit starts folded with no intro', async () => {
+    const first = await loaded();
+    choose(first, 'marker-style', 'code');
+    const again = await loaded();
+    expect(again.querySelector('.output-panel-folded')).not.toBeNull();
+    expect(again.querySelector('.output-intro')).toBeNull();
+  });
+
+  it('a choice made on a first visit saves it and changes the button to 完成', async () => {
+    const view = await loaded();
+    choose(view, 'output-mode', 'code');
+    expect(savedPrefs().outputMode).toBe('code');
+    expect(view.querySelector('.output-intro')).toBeNull();
+    expect(button(view, '完成')).toBeTruthy();
+    expect(view.querySelector('.output-panel-folded')).toBeNull(); // stays open until it is closed
+  });
+
+  it('變更 expands the saved card and 完成 folds it again, moving focus to 變更', async () => {
+    const first = await loaded();
+    button(first, '用這個設定')!.click();
+    const view = await loaded();
+    view.querySelector<HTMLButtonElement>('.output-summary-change')!.click();
+    expect(view.querySelector('.output-panel-folded')).toBeNull();
+    expect(view.querySelectorAll('button.choice')).toHaveLength(6);
+    expect(button(view, '完成')).toBeTruthy();
+    button(view, '完成')!.click();
+    expect(view.querySelector('.output-panel-folded')).not.toBeNull();
+    expect(document.activeElement).toBe(view.querySelector('.output-summary-change'));
+  });
+
+  it('the one line reflects the current choice in plain words', async () => {
+    const view = await loaded();
+    button(view, '用這個設定')!.click();
+    const expand = () => view.querySelector<HTMLButtonElement>('.output-summary-change')!.click();
+    expand();
+    choose(view, 'output-mode', 'code');
+    choose(view, 'marker-style', 'label');
+    button(view, '完成')!.click();
+    expect(summary(view)).toBe('輸出方式：全部隱藏・類別標記（之後無法還原）');
+    expand();
+    choose(view, 'marker-style', 'blank');
+    button(view, '完成')!.click();
+    expect(summary(view)).toBe('輸出方式：全部隱藏・空白佔位（之後無法還原）');
+    expand();
+    choose(view, 'output-mode', 'custom');
+    choose(view, 'marker-style', 'code');
+    button(view, '完成')!.click();
+    expect(summary(view)).toBe('輸出方式：自訂・可還原');
+  });
+
+  it('the top banner still switches to 全部隱藏 while folded', async () => {
+    const view = await loaded();
+    button(view, '用這個設定')!.click();
+    expect(view.querySelector('.output-panel-folded')).not.toBeNull();
+    expect(view.querySelector('.status-partial')).not.toBeNull();
+    [...view.querySelectorAll<HTMLButtonElement>('.status-partial button')][0].click();
+    expect(view.querySelector('.output-panel-folded')).not.toBeNull();
+    expect(summary(view)).toBe('輸出方式：全部隱藏・可還原');
+    expect(view.querySelector('.status-partial')).toBeNull();
+    expect(savedPrefs().outputMode).toBe('code');
+  });
+});
+

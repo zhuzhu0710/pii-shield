@@ -40,7 +40,8 @@ function renderRange(parent: Node, text: string, start: number, end: number, dec
     const dStart = Math.max(d.start, start);
     const dEnd = Math.min(d.end, end);
     if (dStart > cursor) parent.appendChild(textSpan(text.slice(cursor, dStart), cursor));
-    const attrs: Record<string, string> = { 'data-start': String(d.start), 'data-end': String(d.end), 'data-tip': d.tip };
+    // An empty tip means the element has its own card (ui/mark-card.ts): no global one-line tooltip on top of it.
+    const attrs: Record<string, string> = { 'data-start': String(d.start), 'data-end': String(d.end), ...(d.tip ? { 'data-tip': d.tip } : {}) };
     if (d.id) attrs['data-id'] = d.id;
     const first = d.start >= start;
     if (d.kind === 'cancelled') {

@@ -5,6 +5,7 @@ import { createProcessView, hasUnsavedResults, syncPatternChanges } from './ui/p
 import { createPatternsView } from './ui/patterns-view';
 import { createRestoreView } from './ui/restore-view';
 import { initWordLists } from './core/word-lists';
+import { closeMarkCard } from './ui/mark-card';
 
 type ViewId = 'process' | 'restore' | 'settings';
 
@@ -105,6 +106,7 @@ function mount(): void {
   const activate = (id: ViewId) => {
     // Popups are attached to <body>, so they would otherwise linger over the other tabs.
     document.querySelector('.add-popup')?.remove();
+    closeMarkCard();
     window.getSelection()?.removeAllRanges();
     for (const t of [...TASKS, SETTINGS]) {
       const button = nav.querySelector<HTMLElement>(`[data-tab="${t.id}"]`);
@@ -166,6 +168,8 @@ function mount(): void {
     footer,
     infoDialog,
   );
+  // The word-list card's 進階設定 link (ui/mark-card.ts) opens the settings tab.
+  window.addEventListener('deid:open-settings', () => activate(SETTINGS.id));
   activate('process');
   if (!introSeen()) showIntro();
 

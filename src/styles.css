@@ -366,6 +366,12 @@ button.step-button:hover .step-label { color: var(--pine); text-decoration: unde
 .choice[aria-pressed='true'] .choice-example { color: #fff; }
 .output-live { margin: 0.7rem 0 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 .output-notice { margin: 0.5rem 0 0; }
+.output-panel-folded { padding: 0.55rem 0.8rem; }
+.output-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem 0.8rem; flex-wrap: wrap; }
+.output-summary-text { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1rem; }
+.output-summary-label { color: var(--muted); }
+.output-intro { margin: 0.7rem 0 0; padding: 0.5rem 0.7rem; background: var(--pine-tint); border-radius: 4px; color: var(--ink-soft); font-size: 0.95rem; line-height: 1.7; }
+.output-actions { display: flex; justify-content: flex-end; margin-top: 0.8rem; }
 .output-advanced { border-top: 1px solid var(--line); margin-top: 0.8rem; padding-top: 0.45rem; }
 .output-advanced > summary { cursor: pointer; font-size: 0.92rem; font-weight: 700; color: var(--pine); padding: 0.2rem 0; }
 .output-advanced[open] > summary { margin-bottom: 0.4rem; }
@@ -406,6 +412,22 @@ button.step-button:hover .step-label { color: var(--pine); text-decoration: unde
 .add-popup-text { font-size: 0.92rem; margin-bottom: 0.45rem; color: var(--ink); overflow-wrap: anywhere; }
 .add-popup-row { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .add-popup .select { width: auto; }
+
+/* The card a mark opens on hover, focus or tap: word-list actions that are real buttons. */
+.preview [data-id]:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.mark-card {
+  position: fixed; z-index: 25; width: 22rem; max-width: calc(100vw - 16px); box-sizing: border-box;
+  background: var(--sheet); border: 1px solid var(--line-strong); border-radius: 6px; padding: 0.7rem 0.8rem;
+  box-shadow: 0 10px 28px rgba(28, 38, 36, 0.16); color: var(--ink);
+}
+.mark-card-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.2rem 0.5rem; }
+.mark-card-original { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.mark-card-line { margin: 0.3rem 0 0; overflow-wrap: anywhere; }
+.mark-card-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 0.6rem; }
+.mark-card-btn { max-width: 100%; white-space: normal; text-align: left; line-height: 1.5; overflow-wrap: anywhere; }
+.mark-card-state { font-size: 0.92rem; font-weight: 600; color: var(--pine); }
+.mark-card-note { margin: 0.6rem 0 0; line-height: 1.7; }
+.mark-card-note .link-btn { font-size: inherit; padding: 0; }
 
 /* ---------- Step 3: download ---------- */
 .download-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }

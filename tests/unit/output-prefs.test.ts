@@ -1,13 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, Retention } from '../../src/core/types';
-import {
-  OUTPUT_PREFS_STORAGE_KEY,
-  defaultOutputPrefs,
-  loadOutputPrefs,
-  parseOutputPrefs,
-  saveOutputPrefs,
-  type OutputPrefs,
-} from '../../src/core/output-prefs';
+import { OUTPUT_PREFS_STORAGE_KEY, defaultOutputPrefs, loadOutputPrefs, parseOutputPrefs, saveOutputPrefs, type OutputPrefs, hasSavedOutputPrefs } from '../../src/core/output-prefs';
 
 const KEY = 'deid.outputPrefs.v1';
 
@@ -138,3 +131,21 @@ describe('output preferences', () => {
     expect(parsed.overrides.get('統編')).toEqual({ mode: 'none' });
   });
 });
+
+describe('hasSavedOutputPrefs (first-visit check)', () => {
+  it('is false when nothing is saved, and false for unreadable data', () => {
+    localStorage.clear();
+    expect(hasSavedOutputPrefs()).toBe(false);
+    localStorage.setItem(OUTPUT_PREFS_STORAGE_KEY, '{not json');
+    expect(hasSavedOutputPrefs()).toBe(false);
+    localStorage.setItem(OUTPUT_PREFS_STORAGE_KEY, JSON.stringify({ version: 2 }));
+    expect(hasSavedOutputPrefs()).toBe(false);
+  });
+
+  it('is true once choices have been saved', () => {
+    localStorage.clear();
+    saveOutputPrefs(defaultOutputPrefs());
+    expect(hasSavedOutputPrefs()).toBe(true);
+  });
+});
+

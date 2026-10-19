@@ -70,6 +70,19 @@ export function loadOutputPrefs(): OutputPrefs {
   }
 }
 
+/**
+ * Whether this browser already holds readable choices. A first visit (nothing saved, or unreadable data) is
+ * when the page asks the user to pick the output settings once.
+ */
+export function hasSavedOutputPrefs(): boolean {
+  try {
+    const raw = storage()?.getItem(OUTPUT_PREFS_STORAGE_KEY);
+    return !!raw && JSON.parse(raw)?.version === 1;
+  } catch {
+    return false;
+  }
+}
+
 /** Returns false when the browser would not keep the choices (storage blocked or full). */
 export function saveOutputPrefs(prefs: OutputPrefs): boolean {
   try {
