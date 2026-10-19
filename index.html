@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>__BRAND_NAME__｜文件個資隱藏與還原，檔案不上傳</title>
+    <meta name="description" content="__BRAND_TAGLINE__。自動找出 PDF、Word、Excel、TXT 與掃描檔中的姓名、身分證字號、電話、地址、Email、公司與統編，隱藏後下載；下載時附上還原鑰匙檔，之後可換回原文。全程在瀏覽器內處理。" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#1F5C57" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231F5C57'/%3E%3Crect x='8' y='6.5' width='16' height='19' rx='1.5' fill='%23ffffff'/%3E%3Crect x='11' y='11' width='10' height='2.6' rx='.6' fill='%231C2624'/%3E%3Crect x='11' y='16.2' width='6.5' height='2.6' rx='.6' fill='%231C2624'/%3E%3C/svg%3E" />
+
+    <!-- Search and AI-answer metadata. The FAQPage answers must stay word-for-word identical to the visible #faq below. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "name": "__BRAND_NAME__",
+          "description": "純前端的文件個資隱藏工具：上傳 PDF、Word、Excel、TXT、Markdown 或貼上文字，自動找出個人資料並隱藏，下載時附上還原鑰匙檔，之後可換回原文。檔案不會上傳。",
+          "applicationCategory": "UtilitiesApplication",
+          "operatingSystem": "Any (Web browser)",
+          "browserRequirements": "Requires JavaScript",
+          "inLanguage": "zh-Hant-TW",
+          "isAccessibleForFree": true,
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" },
+          "license": "https://opensource.org/licenses/MIT"
+        },
+        {
+          "@type": "HowTo",
+          "name": "如何隱藏文件中的個資，並在之後還原",
+          "inLanguage": "zh-Hant-TW",
+          "step": [
+            { "@type": "HowToStep", "position": 1, "name": "放入檔案", "text": "把 PDF、Word、Excel、TXT 或 Markdown 檔案拖進來，或直接貼上文字。掃描的 PDF 會先在瀏覽器內辨識文字。" },
+            { "@type": "HowToStep", "position": 2, "name": "檢查標記", "text": "確認自動找出的姓名、身分證字號、手機、地址、Email 等都已被標記。點一下標記可取消，用滑鼠圈選文字可新增。" },
+            { "@type": "HowToStep", "position": 3, "name": "下載", "text": "下載隱藏個資後的文件，以及還原鑰匙檔。請把鑰匙檔妥善保存，和文件分開寄送。" }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "這個工具是做什麼的？",
+              "acceptedAnswer": { "@type": "Answer", "text": "把文件裡的姓名、身分證字號、電話、地址、Email 等個人資料找出來並隱藏，存成一份新的文件。需要時再用還原鑰匙檔，把隱藏的內容換回原文。" }
+            },
+            {
+              "@type": "Question",
+              "name": "我的檔案會被上傳到伺服器嗎？",
+              "acceptedAnswer": { "@type": "Answer", "text": "不會。所有處理都在你的瀏覽器內以 JavaScript 完成，沒有後端伺服器。載入頁面後即使離線也能使用。瀏覽器只會記住你在「進階設定」調整過的規則，文件內容與還原鑰匙檔都不會被保存。" }
+            },
+            {
+              "@type": "Question",
+              "name": "支援哪些檔案格式？",
+              "acceptedAnswer": { "@type": "Answer", "text": "支援 PDF（含掃描檔，會在瀏覽器內辨識文字）、Word（.docx）、Excel（.xlsx）、TXT、Markdown，也可以直接貼上文字。單檔上限 100 MB，一次最多 10 個檔案。不支援舊版 .doc 與 .xls。" }
+            },
+            {
+              "@type": "Question",
+              "name": "可以找出哪些個資？",
+              "acceptedAnswer": { "@type": "Answer", "text": "內建姓名、身分證字號（含檢核碼）、手機、市話、地址、電子郵件、公司名稱、統一編號（含檢核碼），以及自訂的員工編號、案號等。另有國際電話、信用卡號、美國社會安全碼、IBAN、IP 位址與出生日期。" }
+            },
+            {
+              "@type": "Question",
+              "name": "什麼是還原鑰匙檔？",
+              "acceptedAnswer": { "@type": "Answer", "text": "每個被隱藏的內容都會換成一個編號標記，例如 王[姓名:6e679d]。還原鑰匙檔是一份 CSV 檔，記錄被隱藏的原始內容，還原時需要它。鑰匙檔遺失就無法還原；拿到鑰匙檔的人可以看到所有被隱藏的內容。" }
+            },
+            {
+              "@type": "Question",
+              "name": "不需要還原，可以只把個資遮掉嗎？",
+              "acceptedAnswer": { "@type": "Answer", "text": "可以。在「調整輸出方式」的「標記」改選「類別標記」，會寫成 [姓名]、[手機]；或選「空白佔位」，每個字改成「○」，分隔符號保留，例如 0912-○○○-○○○。這兩種方式不會產生還原鑰匙檔，之後無法還原。" }
+            },
+            {
+              "@type": "Question",
+              "name": "自動找出的結果一定正確嗎？",
+              "acceptedAnswer": { "@type": "Answer", "text": "不一定。中文姓名與地址無法靠規則做到完全正確，所以自動結果只是建議。在檢查標記的步驟，點一下標記可取消誤判，用滑鼠圈選文字可補上漏掉的內容，確認後再下載。" }
+            },
+            {
+              "@type": "Question",
+              "name": "掃描的 PDF 可以用嗎？",
+              "acceptedAnswer": { "@type": "Answer", "text": "可以。沒有文字層的 PDF 會在瀏覽器內以 OCR 辨識繁體中文與英文，再自動找出個資。辨識可能有錯字，下載前請逐頁對照原檔核對。" }
+            },
+            {
+              "@type": "Question",
+              "name": "這個工具要收費嗎？可以自己架設嗎？",
+              "acceptedAnswer": { "@type": "Answer", "text": "免費，以 MIT 授權開源。執行 npm install 與 npm run build 後，dist 資料夾就是一個純靜態網站，可以放到內網伺服器或任何靜態空間，也可以直接用瀏覽器開啟。" }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Static fallback for crawlers and no-JS clients; replaced by the app on load. -->
+      <main class="seo-fallback">
+        <h1>__BRAND_NAME__</h1>
+        <p>__BRAND_TAGLINE__。上傳 PDF、Word、Excel、TXT、Markdown 或貼上文字，自動找出姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂的識別碼，檢查後隱藏並下載，附上還原鑰匙檔，之後可以換回原文。</p>
+        <noscript><p>本工具需要啟用 JavaScript 才能運作。所有處理都在你的瀏覽器中完成，檔案不會上傳。</p></noscript>
+      </main>
+      <!-- Plain-language guide and FAQ: readable without JavaScript; the app moves it into a dialog after mount. -->
+      <section id="site-info" class="site-info" aria-labelledby="site-info-title">
+        <div class="site-info-inner">
+          <h2 id="site-info-title">使用說明與常見問題</h2>
+          <h3>三個步驟</h3>
+          <ol>
+            <li><strong>放入檔案</strong>：把檔案拖進來，或直接貼上文字。</li>
+            <li><strong>檢查標記</strong>：確認自動找出的個資都已被標記。點一下標記可取消，用滑鼠圈選文字可新增。</li>
+            <li><strong>下載</strong>：下載隱藏個資後的文件，以及還原鑰匙檔。鑰匙檔請妥善保存，不要和文件一起寄出。</li>
+          </ol>
+          <p>需要還原時，到「還原」頁上傳文件與還原鑰匙檔，就能換回原文。</p>
+
+          <h3>常見問題</h3>
+          <div id="faq" class="faq">
+            <details>
+              <summary>這個工具是做什麼的？</summary>
+              <p>把文件裡的姓名、身分證字號、電話、地址、Email 等個人資料找出來並隱藏，存成一份新的文件。需要時再用還原鑰匙檔，把隱藏的內容換回原文。</p>
+            </details>
+            <details>
+              <summary>我的檔案會被上傳到伺服器嗎？</summary>
+              <p>不會。所有處理都在你的瀏覽器內以 JavaScript 完成，沒有後端伺服器。載入頁面後即使離線也能使用。瀏覽器只會記住你在「進階設定」調整過的規則，文件內容與還原鑰匙檔都不會被保存。</p>
+            </details>
+            <details>
+              <summary>支援哪些檔案格式？</summary>
+              <p>支援 PDF（含掃描檔，會在瀏覽器內辨識文字）、Word（.docx）、Excel（.xlsx）、TXT、Markdown，也可以直接貼上文字。單檔上限 100 MB，一次最多 10 個檔案。不支援舊版 .doc 與 .xls。</p>
+            </details>
+            <details>
+              <summary>可以找出哪些個資？</summary>
+              <p>內建姓名、身分證字號（含檢核碼）、手機、市話、地址、電子郵件、公司名稱、統一編號（含檢核碼），以及自訂的員工編號、案號等。另有國際電話、信用卡號、美國社會安全碼、IBAN、IP 位址與出生日期。</p>
+            </details>
+            <details>
+              <summary>什麼是還原鑰匙檔？</summary>
+              <p>每個被隱藏的內容都會換成一個編號標記，例如 王[姓名:6e679d]。還原鑰匙檔是一份 CSV 檔，記錄被隱藏的原始內容，還原時需要它。鑰匙檔遺失就無法還原；拿到鑰匙檔的人可以看到所有被隱藏的內容。</p>
+            </details>
+            <details>
+              <summary>不需要還原，可以只把個資遮掉嗎？</summary>
+              <p>可以。在「調整輸出方式」的「標記」改選「類別標記」，會寫成 [姓名]、[手機]；或選「空白佔位」，每個字改成「○」，分隔符號保留，例如 0912-○○○-○○○。這兩種方式不會產生還原鑰匙檔，之後無法還原。</p>
+            </details>
+            <details>
+              <summary>自動找出的結果一定正確嗎？</summary>
+              <p>不一定。中文姓名與地址無法靠規則做到完全正確，所以自動結果只是建議。在檢查標記的步驟，點一下標記可取消誤判，用滑鼠圈選文字可補上漏掉的內容，確認後再下載。</p>
+            </details>
+            <details>
+              <summary>掃描的 PDF 可以用嗎？</summary>
+              <p>可以。沒有文字層的 PDF 會在瀏覽器內以 OCR 辨識繁體中文與英文，再自動找出個資。辨識可能有錯字，下載前請逐頁對照原檔核對。</p>
+            </details>
+            <details>
+              <summary>這個工具要收費嗎？可以自己架設嗎？</summary>
+              <p>免費，以 MIT 授權開源。執行 npm install 與 npm run build 後，dist 資料夾就是一個純靜態網站，可以放到內網伺服器或任何靜態空間，也可以直接用瀏覽器開啟。</p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
