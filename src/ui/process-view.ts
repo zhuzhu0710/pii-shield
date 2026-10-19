@@ -695,14 +695,15 @@ function renderWorkspace(ws: HTMLElement, root: HTMLElement, d: DocState, many: 
   const outputHost = el('div', {});
   const lowHost = el('div', {});
   const headTools = el('div', { class: 'preview-head-tools' });
+  // The output settings sit above the preview card, not inside it, so the two never blend together.
   const previewWrap = el('div', { class: 'preview-wrap' },
     el('div', { class: 'preview-head' }, el('h3', {}, '預覽'), headTools),
     el('p', { class: 'hint-line' }, '點一下標記可取消；用滑鼠圈選文字可新增'),
     previewHint(d.doc) ? el('p', { class: 'muted small preview-desc' }, previewHint(d.doc)) : null,
-    outputHost,
     lowHost,
     preview,
   );
+  const mainColumn = el('div', { class: 'workspace-main' }, outputHost, previewWrap);
   const refresh = () => {
     clear(outputHost);
     outputHost.append(renderOutputPanel(root));
@@ -730,7 +731,7 @@ function renderWorkspace(ws: HTMLElement, root: HTMLElement, d: DocState, many: 
     renderPreview(preview, refresh, root);
   };
   if (many) ws.append(renderFilePanel(root));
-  ws.append(previewWrap, sidebar);
+  ws.append(mainColumn, sidebar);
   refresh();
 }
 
@@ -802,41 +803,24 @@ function liveExample(): string {
   return `身分證 ${modeExample(state.outputMode, state.marker)}`;
 }
 
-/** A re-render replaces every element, so focus is put back on the control the user just used. */
-function renderThenFocus(root: HTMLElement, selector: string): void {
-  render(root);
-  root.querySelector<HTMLElement>(selector)?.focus();
-}
+const OUTPUT_BODY_ID = 'output-settings-body';
+const SLIDERS_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>';
+const CHEVRON_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="6 9 12 15 18 9"/></svg>';
 
-/** Expands or folds the output card. Expanding focuses its first choice; folding focuses 變更 again. */
-function setPanelOpen(root: HTMLElement, open: boolean): void {
-  state.panelOpen = open;
-  renderThenFocus(root, open ? '.output-panel .choice' : '.output-summary-change');
-}
-
-/** Folded: one line with the current choice in plain words, and 變更 to open the full card. */
-function renderOutputSummary(root: HTMLElement): HTMLElement {
-  const change = button('變更', () => setPanelOpen(root, true), 'btn btn-small output-summary-change');
-  change.setAttribute('aria-expanded', 'false');
-  return el('section', { class: 'output-panel output-panel-folded', 'aria-label': '輸出方式' },
-    el('div', { class: 'output-summary' },
-      el('p', { class: 'output-summary-text' },
-        el('span', { class: 'output-summary-label' }, '輸出方式：'),
-        el('strong', {}, `${OUTPUT_MODE_LABELS[state.outputMode]}・${MARKER_LABELS[state.marker]}`),
-        restorable() ? null : el('span', { class: 'muted small' }, '（之後無法還原）'),
-      ),
-      change,
-    ),
-  );
+/** A small trusted inline SVG (static markup from this file only) inside a span. */
+function iconSpan(cls: string, markup: string): HTMLElement {
+  const span = el('span', { class: cls, 'aria-hidden': 'true' });
+  span.innerHTML = markup;
+  return span;
 }
 
 /**
- * The single place to decide what the output shows: how much stays visible and the marker style. Both choices
- * are on screen when the card is open; per-category settings, 設為預設 and the shared key scope sit under 進階設定.
- * Folded (the usual case once chosen) it is one line; see renderOutputSummary.
+ * The single place to decide what the output shows: how much stays visible and the marker style. It is a
+ * disclosure: the header is one button (chevron on the right) that folds the choices away to one line.
+ * Both choices sit in the body when open; per-category settings, 設為預設 and the shared key scope sit under 進階設定.
+ * It lives outside the preview card, directly above it.
  */
 function renderOutputPanel(root: HTMLElement): HTMLElement {
-  if (!state.panelOpen) return renderOutputSummary(root);
   // The output text changes, codes do not: every document needs downloading again.
   const setMarker = (marker: MarkerStyle) => {
     state.marker = marker;
@@ -899,19 +883,31 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     restorable() ? el('div', { class: 'output-subsection' }, el('h4', {}, '多個檔案共用還原鑰匙'), renderCodeScope(root)) : null,
   ) as HTMLDetailsElement;
   advanced.addEventListener('toggle', () => (state.advancedOpen = advanced.open));
-  // Saves the choice (a first visit has nothing saved yet) and folds the card back to its one line.
-  const done = button(state.prefsAccepted ? '完成' : '用這個設定', () => {
-    persistOutputPrefs();
-    setPanelOpen(root, false);
-  }, 'btn btn-primary btn-small');
-  return el('section', { class: 'output-panel', 'aria-labelledby': 'output-panel-title' },
-    el('div', { class: 'output-panel-head' },
-      el('h3', { id: 'output-panel-title' }, '輸出方式（可隨時切換）'),
-      el('p', { class: 'muted small output-memory' }, '會記住你這次的選擇，下次自動套用'),
-    ),
-    state.prefsAccepted
-      ? null
-      : el('p', { class: 'output-intro' }, '第一次使用：請選擇輸出方式。選一次就好，之後每份文件都會自動沿用，隨時可以按『變更』修改。'),
+  const folded = el('span', { class: 'os-folded-text' },
+    el('span', { class: 'os-label' }, '輸出方式：'),
+    el('strong', {}, `${OUTPUT_MODE_LABELS[state.outputMode]}・${MARKER_LABELS[state.marker]}`),
+    restorable() ? null : el('span', { class: 'os-restore muted small' }, '（之後無法還原）'),
+  );
+  const expandedTitle = el('span', { class: 'os-open-text' },
+    el('span', { class: 'os-title' }, '輸出方式（可隨時切換）'),
+    el('span', { class: 'os-note muted small' }, '會記住你這次的選擇，下次自動套用'),
+  );
+  const toggleLabel = el('span', { class: 'os-toggle-label' }, state.panelOpen ? '收合' : '展開設定');
+  folded.hidden = state.panelOpen;
+  expandedTitle.hidden = !state.panelOpen;
+  const head = el('button', {
+    class: 'output-settings-head',
+    type: 'button',
+    'aria-expanded': String(state.panelOpen),
+    'aria-controls': OUTPUT_BODY_ID,
+  },
+    iconSpan('os-icon', SLIDERS_ICON),
+    el('span', { class: 'os-text' }, folded, expandedTitle),
+    el('span', { class: 'os-toggle' }, toggleLabel, iconSpan('os-chevron', CHEVRON_ICON)),
+  ) as HTMLButtonElement;
+  const body = el('div', { class: 'output-settings-body', id: OUTPUT_BODY_ID }, state.prefsAccepted
+    ? null
+    : el('p', { class: 'output-intro' }, '第一次使用：請選擇輸出方式，選好後按右上角 ▲ 收合。之後每份文件都會自動沿用。'),
     choiceRow('output-mode', '要露出多少', keepOptions, state.outputMode, (mode) => setOutputMode(mode, root)),
     choiceRow('marker-style', '標記方式', markerOptions, state.marker, setMarker),
     el('p', { class: 'output-live' },
@@ -920,8 +916,22 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     ),
     notices.length ? el('p', { class: 'small notice notice-inline output-notice' }, `⚠ ${notices.join('；')}`) : null,
     advanced,
-    el('div', { class: 'output-actions' }, done),
   );
+  body.hidden = !state.panelOpen;
+  const panel = el('section', { class: `output-settings${state.panelOpen ? ' is-open' : ''}`, 'aria-label': '輸出方式' }, head, body);
+  // Opening or folding happens in place, so the chevron can rotate. Folding saves the current choice, so the next visit starts folded.
+  const setOpen = (open: boolean) => {
+    state.panelOpen = open;
+    if (!open) persistOutputPrefs();
+    panel.classList.toggle('is-open', open);
+    head.setAttribute('aria-expanded', String(open));
+    body.hidden = !open;
+    folded.hidden = open;
+    expandedTitle.hidden = !open;
+    toggleLabel.textContent = open ? '收合' : '展開設定';
+  };
+  head.addEventListener('click', () => setOpen(!state.panelOpen));
+  return panel;
 }
 
 function renderCategoryTable(root: HTMLElement): HTMLElement {

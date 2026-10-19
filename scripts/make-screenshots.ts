@@ -70,7 +70,7 @@ await shot(page, '01-upload');
 
 // 2. Preview after detection (list collapsed by default)
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/委外服務契約書.docx');
-await annotate(page, [['.output-panel-summary', 1], ['.preview', 2], ['.list-toggle', 3], ['.toolbar-actions', 4]]);
+await annotate(page, [['.output-settings-head', 1], ['.preview', 2], ['.list-toggle', 3], ['.toolbar-actions', 4]]);
 await shot(page, '02-preview');
 
 // 2a. Batch: several files at once, file panel on the left, zip download
@@ -149,7 +149,7 @@ await new Promise((r) => setTimeout(r, 300));
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/委外服務契約書.docx');
 
 // 2d/2e. Output settings panel: 部分保留 (the default), then 自訂 per category (preview shows the output, codes as [類別])
-const setPanel = (open: boolean) => page.evaluate((v) => ((document.querySelector('.output-panel') as HTMLDetailsElement).open = v), open);
+const setPanel = (open: boolean) => page.evaluate((v) => { const s = document.querySelector('.output-settings'); if (s && s.classList.contains('is-open') !== v) (s.querySelector('.output-settings-head') as HTMLButtonElement).click(); }, open);
 await setPanel(true);
 await page.click('input[name=output-mode][value=preview]');
 await new Promise((r) => setTimeout(r, 300));
@@ -176,7 +176,7 @@ await page.evaluate(() => {
 await new Promise((r) => setTimeout(r, 300));
 await setPanel(true);
 await page.evaluate(() => [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!.classList.add('shot-row'));
-await annotate(page, [['.output-table .shot-row', 1], ['.output-panel .form-actions', 2], ['.status-line .notice', 3]]);
+await annotate(page, [['.output-table .shot-row', 1], ['.output-settings .form-actions', 2], ['.status-line .notice', 3]]);
 // a taller viewport so the 設為預設 button under the category table stays in the shot with the toolbar
 await page.setViewport({ width: 1440, height: 1010, deviceScaleFactor: 2 });
 await shot(page, '02e-output-custom');
