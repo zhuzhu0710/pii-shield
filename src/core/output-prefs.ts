@@ -19,11 +19,13 @@ export interface OutputPrefs {
   marker: MarkerStyle;
   /** 自訂 mode: per-category retention, kept even while another mode is selected. */
   overrides: Map<Category, Retention>;
+  /** Word, Excel and PDF output: light grey behind each hidden value. On by default. */
+  highlight: boolean;
 }
 
-/** The first-visit choices: 編碼 (可還原) and 露出部分. */
+/** The first-visit choices: 編碼 (可還原)、露出部分 and the grey highlight. */
 export function defaultOutputPrefs(): OutputPrefs {
-  return { outputMode: 'preview', marker: 'code', overrides: new Map() };
+  return { outputMode: 'preview', marker: 'code', overrides: new Map(), highlight: true };
 }
 
 const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -38,6 +40,8 @@ export function parseOutputPrefs(raw: unknown): OutputPrefs {
   if (!isRecord(raw) || raw.version !== 1) return out;
   if ((OUTPUT_MODES as readonly unknown[]).includes(raw.outputMode)) out.outputMode = raw.outputMode as OutputMode;
   if (MARKER_STYLES.includes(raw.marker as MarkerStyle)) out.marker = raw.marker as MarkerStyle;
+  // Saved choices from before this option existed have no field: they keep the default (on).
+  if (typeof raw.highlight === 'boolean') out.highlight = raw.highlight;
   if (isRecord(raw.overrides)) {
     for (const [key, value] of Object.entries(raw.overrides)) {
       if (!isCategory(key)) continue;
@@ -92,6 +96,7 @@ export function saveOutputPrefs(prefs: OutputPrefs): boolean {
       version: 1,
       outputMode: prefs.outputMode,
       marker: prefs.marker,
+      highlight: prefs.highlight,
       overrides: Object.fromEntries(prefs.overrides),
     };
     s.setItem(OUTPUT_PREFS_STORAGE_KEY, JSON.stringify(data));

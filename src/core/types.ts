@@ -74,11 +74,24 @@ export interface MappingEntry {
   suffix?: string;
 }
 
+/**
+ * Options for regenerating a file. `highlight` puts a light-grey background behind every replacement
+ * (de-identified output only). Restore leaves it off, which also clears the grey from the restored text.
+ */
+export interface GenerateOptions {
+  highlight?: boolean;
+}
+
 /** A single replacement in the document's full text, expressed in text offsets. */
 export interface TextEdit {
   start: number;
   end: number;
   replacement: string;
+  /**
+   * Offsets within `replacement` of the hidden value's marker (the part the grey highlight covers). Absent
+   * means the whole replacement. A kept prefix or suffix (e.g. the first two letters of an ID) is outside it.
+   */
+  mark?: { start: number; end: number };
 }
 
 /** Structure of the document expressed in full-text offsets, used only to render a format-aware preview. */

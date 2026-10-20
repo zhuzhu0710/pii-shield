@@ -93,6 +93,8 @@ interface State {
   marker: MarkerStyle;
   /** 自訂 mode: per-category retention overriding the rules' own setting. */
   overrides: Map<Category, Retention>;
+  /** Word, Excel and PDF output: light grey behind each hidden value (applies to every document). */
+  highlight: boolean;
   /** Fingerprint of the patterns the loaded documents were last detected with. */
   patternKey: string;
   /** The user has chosen output settings in this browser (saved, or chosen this session). False on a first visit. */
@@ -116,6 +118,7 @@ const state: State = {
   outputMode: 'preview',
   marker: 'code',
   overrides: new Map(),
+  highlight: true,
   patternKey: '',
   prefsAccepted: false,
   panelOpen: true,
@@ -216,6 +219,7 @@ function restoreOutputPrefs(): void {
   state.outputMode = prefs.outputMode;
   state.marker = prefs.marker;
   state.overrides = prefs.overrides;
+  state.highlight = prefs.highlight;
   // A first visit asks once (the card opens); after that the saved choice applies to every file, folded to one line.
   state.prefsAccepted = hasSavedOutputPrefs();
   state.panelOpen = !state.prefsAccepted;
@@ -223,7 +227,7 @@ function restoreOutputPrefs(): void {
 
 /** Remembers the current output choices. The page keeps working when the browser refuses to store them. */
 function persistOutputPrefs(): void {
-  saveOutputPrefs({ outputMode: state.outputMode, marker: state.marker, overrides: state.overrides });
+  saveOutputPrefs({ outputMode: state.outputMode, marker: state.marker, overrides: state.overrides, highlight: state.highlight });
   state.prefsAccepted = true;
 }
 
@@ -869,8 +873,17 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     example: MARKER_NOTES[value].example,
     mono: value !== 'blank',
   }));
+  const highlightBox = el('input', { type: 'checkbox' }) as HTMLInputElement;
+  highlightBox.checked = state.highlight;
+  highlightBox.addEventListener('change', () => {
+    state.highlight = highlightBox.checked;
+    persistOutputPrefs();
+    for (const d of state.docs) markDirty(d); // the file itself changes, so every document needs downloading again
+    render(root);
+  });
   const advanced = el('details', { class: 'output-advanced', open: state.advancedOpen || state.outputMode === 'custom' },
     el('summary', {}, '進階設定（依類別調整、多個檔案共用還原鑰匙）'),
+    el('label', { class: 'output-highlight' }, highlightBox, el('span', {}, '在輸出檔中用淺灰底標出被隱藏的地方（Word、Excel、PDF）')),
     section('by-category', `依類別調整（${present} 類）`, state.outputMode === 'custom' || state.categoriesOpen, (open) => (state.categoriesOpen = open),
       renderCategoryTable(root),
       state.outputMode === 'custom'
@@ -1305,7 +1318,7 @@ function warnIfStale(partnerVer: number, d: DocState, partner: string): void {
 
 async function saveDoc(d: DocState): Promise<void> {
   const { edits } = applyRedactions(d.doc.text, d.items, state.marker);
-  const blob = await generateDocument(d.doc, edits);
+  const blob = await generateDocument(d.doc, edits, { highlight: state.highlight });
   downloadBlob(blob, outputFileName(d.doc.fileName, 'deid'));
   d.docVer = d.version;
 }
@@ -1365,7 +1378,7 @@ async function copyText(d: DocState): Promise<void> {
 async function downloadAll(root: HTMLElement): Promise<void> {
   try {
     toast(`打包 ${state.docs.length} 個檔案中…`, 'info', 3000);
-    const { blob } = await buildArchive(state.docs.map((d) => ({ doc: d.doc, items: d.items })), hasMergedTable() ? mergedMapping() : undefined, state.marker);
+    const { blob } = await buildArchive(state.docs.map((d) => ({ doc: d.doc, items: d.items })), hasMergedTable() ? mergedMapping() : undefined, state.marker, { highlight: state.highlight });
     for (const d of state.docs) {
       d.docVer = d.version;
       d.csvVer = d.version;

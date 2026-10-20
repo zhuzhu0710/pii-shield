@@ -4,8 +4,8 @@ import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import type { LoadedDocument, PdfCheckbox, PdfItemLayout, PdfScanLayout, Rgb, TextEdit } from '../core/types';
-import { distributeEdits, type Segment } from './segments';
+import type { GenerateOptions, LoadedDocument, PdfCheckbox, PdfItemLayout, PdfScanLayout, Rgb, TextEdit } from '../core/types';
+import { distributeChanges, type Segment, type SegmentChange } from './segments';
 import { sparseSubsetTtf } from './ttf-subset';
 import type { OcrOptions } from './ocr';
 
@@ -200,25 +200,42 @@ function roomOnLine(pg: PdfPage, it: PdfTextItem): number {
   return room / 1.02; // fitSize tolerates 2% overflow
 }
 
+/** Light grey (D9D9D9) behind replacement text on de-identified output. */
+const GREY: Rgb = [217, 217, 217];
+
+/** Text drawn in one item, split where its replacement spans fall (see pieces in docx.ts for the docx side). */
+interface DrawnItem {
+  x: number;
+  y: number;
+  size: number;
+  text: string;
+  color?: Rgb;
+  /** Replacement spans in x (points), each with the width to shade. */
+  spans: { x: number; width: number }[];
+}
+
 /**
  * Rebuilds the PDF as text-only pages at the original coordinates. Original bytes are never
  * copied, so no redacted text can survive underneath (see research.md R2); the only images are the
  * text-free pictures cut from scanned pages that the user kept.
+ *
+ * With `highlight`, a light-grey rectangle is drawn behind each replacement before any text on the page,
+ * so the grey never covers text. Restore output is generated without it.
  */
-export async function generatePdf(doc: LoadedDocument, edits: TextEdit[]): Promise<Blob> {
+export async function generatePdf(doc: LoadedDocument, edits: TextEdit[], opts: GenerateOptions = {}): Promise<Blob> {
   const handle = doc.handle as PdfHandle;
-  const changes = distributeEdits(handle.segments, edits);
+  const changes = distributeChanges(handle.segments, edits);
 
-  const newTexts: Map<number, Map<number, string>> = new Map();
-  for (const [segIdx, newText] of changes) {
+  const newTexts: Map<number, Map<number, SegmentChange>> = new Map();
+  for (const [segIdx, change] of changes) {
     const p = handle.itemPage[segIdx];
     if (!newTexts.has(p)) newTexts.set(p, new Map());
-    newTexts.get(p)!.set(handle.itemIndex[segIdx], newText);
+    newTexts.get(p)!.set(handle.itemIndex[segIdx], change);
   }
 
   // Embed only the glyphs this document draws (see ttf-subset.ts for why not pdf-lib's subsetter).
   let allText = '?';
-  handle.pages.forEach((pg, pIdx) => pg.items.forEach((it, iIdx) => (allText += newTexts.get(pIdx)?.get(iIdx) ?? it.text)));
+  handle.pages.forEach((pg, pIdx) => pg.items.forEach((it, iIdx) => (allText += newTexts.get(pIdx)?.get(iIdx)?.text ?? it.text)));
   const out = await PDFDocument.create();
   out.registerFontkit(fontkit);
   const font = await out.embedFont(sparseSubsetTtf(new Uint8Array(await loadFontBytes()), allText), { subset: false });
@@ -236,19 +253,57 @@ export async function generatePdf(doc: LoadedDocument, edits: TextEdit[]): Promi
       page.drawLine({ start: { x: r.x1, y: r.y1 }, end: { x: r.x2, y: r.y2 }, thickness: r.width, color: colour(r.color), ...(r.dashed && { dashArray: [r.width * 3, r.width * 2] }) });
     }
     for (const b of pg.checkboxes ?? []) drawCheckbox(page, b);
+
+    // Lay out every item first, so the grey can be drawn under all of the page's text.
     const pageChanges = newTexts.get(pIdx);
+    const drawn: DrawnItem[] = [];
     pg.items.forEach((it, iIdx) => {
-      const changed = pageChanges?.has(iIdx) ?? false;
-      const text = sanitizeForFont(changed ? pageChanges!.get(iIdx)! : it.text, supported);
+      const change = pageChanges?.get(iIdx);
+      const pieces = change ? changePieces(change) : [{ text: it.text, replace: false }];
+      const text = sanitizeForFont(pieces.map((p) => p.text).join(''), supported);
       if (text.length === 0) return;
       // Replacement text may run past the original item; let it use the space up to the right
       // margin before shrinking, so whole-line items keep their size.
       const room = Math.max(it.width, pg.width - it.x - 36);
-      const size = doc.ocr ? fitSize(font, text, it.fontSize, roomOnLine(pg, it)) : changed ? fitSize(font, text, it.fontSize, room) : it.fontSize;
-      page.drawText(text, { x: it.x, y: it.y, size, font, ...(it.color && { color: colour(it.color) }) });
+      const size = doc.ocr ? fitSize(font, text, it.fontSize, roomOnLine(pg, it)) : change ? fitSize(font, text, it.fontSize, room) : it.fontSize;
+      const spans: DrawnItem['spans'] = [];
+      if (opts.highlight && change) {
+        let before = '';
+        for (const piece of pieces) {
+          const part = sanitizeForFont(piece.text, supported);
+          if (piece.replace && part.length > 0) {
+            spans.push({ x: it.x + font.widthOfTextAtSize(before, size), width: font.widthOfTextAtSize(part, size) });
+          }
+          before += part;
+        }
+      }
+      drawn.push({ x: it.x, y: it.y, size, text, color: it.color, spans });
     });
+
+    const descent = (size: number) => font.heightAtSize(size) - font.heightAtSize(size, { descender: false });
+    for (const d of drawn) {
+      for (const span of d.spans) {
+        page.drawRectangle({ x: span.x, y: d.y - descent(d.size), width: span.width, height: font.heightAtSize(d.size), color: colour(GREY) });
+      }
+    }
+    for (const d of drawn) {
+      page.drawText(d.text, { x: d.x, y: d.y, size: d.size, font, ...(d.color && { color: colour(d.color) }) });
+    }
   });
 
   const bytes = await out.save();
   return new Blob([bytes as BlobPart], { type: 'application/pdf' });
+}
+
+/** The replacement and unchanged spans of an item's new text, in order (an item with no replacement is one span). */
+function changePieces(change: SegmentChange): { text: string; replace: boolean }[] {
+  const out: { text: string; replace: boolean }[] = [];
+  let cursor = 0;
+  for (const [s, e] of change.replaced) {
+    if (s > cursor) out.push({ text: change.text.slice(cursor, s), replace: false });
+    out.push({ text: change.text.slice(s, e), replace: true });
+    cursor = e;
+  }
+  if (cursor < change.text.length) out.push({ text: change.text.slice(cursor), replace: false });
+  return out.length > 0 ? out : [{ text: '', replace: false }];
 }

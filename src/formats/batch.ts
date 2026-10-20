@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import type { LoadedDocument, MappingEntry, RedactionItem } from '../core/types';
+import type { GenerateOptions, LoadedDocument, MappingEntry, RedactionItem } from '../core/types';
 import { applyRedactions, isPartial, type MarkerStyle } from '../core/redactor';
 import { serializeMapping } from '../core/csv';
 import { generateDocument, mappingFileName, outputFileName } from './index';
@@ -51,7 +51,7 @@ export function manifestCsv(rows: BatchManifestRow[], withMapping = true): strin
  * that pairs them (needed when two inputs share a base name, e.g. 報價單.pdf and 報價單.docx).
  * A marker style that needs no restoring writes the documents only.
  */
-export async function buildArchive(entries: BatchEntry[], merged?: MappingEntry[], style: MarkerStyle = 'code'): Promise<{ blob: Blob; manifest: BatchManifestRow[] }> {
+export async function buildArchive(entries: BatchEntry[], merged?: MappingEntry[], style: MarkerStyle = 'code', opts: GenerateOptions = {}): Promise<{ blob: Blob; manifest: BatchManifestRow[] }> {
   const zip = new JSZip();
   const unique = uniqueNamer();
   const manifest: BatchManifestRow[] = [];
@@ -60,7 +60,7 @@ export async function buildArchive(entries: BatchEntry[], merged?: MappingEntry[
     const { edits, mapping } = applyRedactions(doc.text, items, style);
     const output = unique(outputFileName(doc.fileName, 'deid'));
     const mappingName = restorable ? unique(mappingFileName(doc.fileName)) : '';
-    zip.file(output, await generateDocument(doc, edits));
+    zip.file(output, await generateDocument(doc, edits, opts));
     if (restorable) zip.file(mappingName, serializeMapping(mapping));
     const row: BatchManifestRow = { source: doc.fileName, output, mapping: mappingName, count: edits.length };
     if (items.some((it) => it.active && isPartial(it))) row.partial = true;

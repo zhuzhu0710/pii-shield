@@ -1,4 +1,4 @@
-import type { DocFormat, LoadedDocument, TextEdit } from '../core/types';
+import type { DocFormat, GenerateOptions, LoadedDocument, TextEdit } from '../core/types';
 import { MAX_FILE_BYTES } from '../core/types';
 import { generatePlainText, parsePlainText } from './plaintext';
 import type { ParsePdfOptions } from './pdf';
@@ -44,17 +44,22 @@ export async function parseDocument(file: File, opts: ParsePdfOptions = {}): Pro
   }
 }
 
-export async function generateDocument(doc: LoadedDocument, edits: TextEdit[]): Promise<Blob> {
+/**
+ * Regenerates the file with `edits` applied. `opts.highlight` marks each replacement with a light grey
+ * (Word, Excel, PDF; plain text cannot carry it). Without it, the output has no grey, and grey left by an
+ * earlier de-identification is removed from the replaced text, so restore output matches the original.
+ */
+export async function generateDocument(doc: LoadedDocument, edits: TextEdit[], opts: GenerateOptions = {}): Promise<Blob> {
   switch (doc.format) {
     case 'txt':
     case 'md':
       return generatePlainText(doc, edits);
     case 'docx':
-      return (await import('./docx')).generateDocx(doc, edits);
+      return (await import('./docx')).generateDocx(doc, edits, opts);
     case 'xlsx':
-      return (await import('./xlsx')).generateXlsx(doc, edits);
+      return (await import('./xlsx')).generateXlsx(doc, edits, opts);
     case 'pdf':
-      return (await import('./pdf')).generatePdf(doc, edits);
+      return (await import('./pdf')).generatePdf(doc, edits, opts);
   }
 }
 

@@ -23,6 +23,7 @@ describe('output preferences', () => {
       outputMode: 'code',
       marker: 'label',
       overrides: new Map([['姓名', { mode: 'surname' }]]),
+      highlight: false,
     };
     expect(saveOutputPrefs(prefs)).toBe(true);
     const loaded = loadOutputPrefs();
@@ -101,6 +102,7 @@ describe('output preferences', () => {
     const prefs: OutputPrefs = {
       outputMode: 'preview',
       marker: 'code',
+      highlight: true,
       overrides: new Map<Category, Retention>([
         ['手機', { mode: 'ends', head: 0, tail: 4 }],
         ['電子郵件', { mode: 'delim', delimiter: '@', side: 'after' }],
@@ -146,6 +148,22 @@ describe('hasSavedOutputPrefs (first-visit check)', () => {
     localStorage.clear();
     saveOutputPrefs(defaultOutputPrefs());
     expect(hasSavedOutputPrefs()).toBe(true);
+  });
+  it('the grey highlight is on by default, including for prefs saved before the option existed', () => {
+    expect(defaultOutputPrefs().highlight).toBe(true);
+    localStorage.setItem(KEY, JSON.stringify({ version: 1, outputMode: 'code', marker: 'label', overrides: {} }));
+    expect(loadOutputPrefs().highlight).toBe(true);
+    expect(loadOutputPrefs().marker).toBe('label');
+  });
+
+  it('a saved "off" choice is kept, and anything that is not a boolean falls back to on', () => {
+    expect(parseOutputPrefs({ version: 1, highlight: false }).highlight).toBe(false);
+    expect(parseOutputPrefs({ version: 1, highlight: 'no' }).highlight).toBe(true);
+    expect(parseOutputPrefs({ version: 1, highlight: null }).highlight).toBe(true);
+    const prefs: OutputPrefs = { ...defaultOutputPrefs(), highlight: false };
+    expect(saveOutputPrefs(prefs)).toBe(true);
+    expect(JSON.parse(localStorage.getItem(KEY)!).highlight).toBe(false);
+    expect(loadOutputPrefs().highlight).toBe(false);
   });
 });
 

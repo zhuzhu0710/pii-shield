@@ -45,7 +45,11 @@ export function buildEdits(items: RedactionItem[], style: MarkerStyle = 'code'):
   return items
     .filter((it) => it.active)
     .sort((a, b) => a.start - b.start)
-    .map((it) => ({ start: it.start, end: it.end, replacement: outputFor(it, style) }));
+    .map((it) => {
+      const replacement = outputFor(it, style);
+      const { prefix, suffix } = splitItem(it);
+      return { start: it.start, end: it.end, replacement, mark: { start: prefix.length, end: replacement.length - suffix.length } };
+    });
 }
 
 export function applyEdits(text: string, edits: TextEdit[]): string {
