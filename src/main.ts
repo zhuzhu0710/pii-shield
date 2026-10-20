@@ -6,6 +6,7 @@ import { createPatternsView } from './ui/patterns-view';
 import { createRestoreView } from './ui/restore-view';
 import { initWordLists } from './core/word-lists';
 import { closeMarkCard } from './ui/mark-card';
+import { footerAbout } from './ui/footer';
 
 type ViewId = 'process' | 'restore' | 'settings';
 
@@ -140,10 +141,7 @@ function mount(): void {
 
   const footer = el('footer', { class: 'footer' },
     el('div', { class: 'footer-inner' },
-      el('p', { class: 'footer-about' },
-        el('strong', {}, '關於　'),
-        `${BRAND_NAME}以 MIT 授權開源，部分程式碼改編自 Dean Lin 的開源專案 data-deidentification。`,
-      ),
+      footerAbout(),
       el('div', { class: 'footer-links' },
         el('button', { class: 'link-btn', type: 'button', onClick: () => showIntro() }, '使用說明'),
         siteInfo ? el('button', { class: 'link-btn', type: 'button', onClick: () => infoDialog.showModal() }, '常見問題') : null,

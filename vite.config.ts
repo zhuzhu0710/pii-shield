@@ -48,9 +48,47 @@ function ocrAssets(): Plugin {
   };
 }
 
+/** The license text ships with the site: LICENSE at the repo root is the single source, copied to LICENSE.txt. */
+const LICENSE_SOURCE = 'LICENSE';
+const LICENSE_NAME = 'LICENSE.txt';
+/** Kept at the top of every built JS chunk so the notice survives copying the bundle alone. */
+const LICENSE_BANNER = '/*! 個資隱身術 — MIT License. Portions © 2026 Dean Lin (data-deidentification). See LICENSE.txt */';
+
+function licenseFile(): Plugin {
+  let root = '.';
+  return {
+    name: 'license-file',
+    configResolved(config) {
+      root = config.root;
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? '').split('?')[0] !== `/${LICENSE_NAME}`) return next();
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.end(readFileSync(resolve(root, LICENSE_SOURCE)));
+      });
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: LICENSE_NAME, source: readFileSync(resolve(root, LICENSE_SOURCE)) });
+    },
+  };
+}
+
+/** Added after minification, which would otherwise drop the /*! notice. */
+function licenseBanner(): Plugin {
+  return {
+    name: 'license-banner',
+    generateBundle(_options, bundle) {
+      for (const item of Object.values(bundle)) {
+        if (item.type === 'chunk') item.code = `${LICENSE_BANNER}\n${item.code}`;
+      }
+    },
+  };
+}
+
 export default defineConfig({
   base: './',
-  plugins: [brandPlaceholders(), ocrAssets()],
+  plugins: [brandPlaceholders(), ocrAssets(), licenseFile(), licenseBanner()],
   build: {
     target: 'es2022',
   },

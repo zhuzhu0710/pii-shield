@@ -672,6 +672,8 @@ body:has(dialog[open]) { overflow: hidden; }
 .footer-inner { max-width: 1180px; margin: 0 auto; padding: 1rem 1.5rem 1.2rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem 1.5rem; flex-wrap: wrap; font-size: 0.9rem; }
 .footer-about { margin: 0; max-width: 46em; color: var(--ink-soft); line-height: 1.75; }
 .footer-about strong { color: var(--ink); font-weight: 700; }
+.footer-about a { color: var(--pine); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.footer-about a:hover { color: var(--pine-deep); }
 .footer-links { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
 
 /* Static guide shown without JavaScript (moved into a dialog after mount). */
