@@ -367,7 +367,16 @@ button.step-button:hover .step-label { color: var(--pine); text-decoration: unde
 .os-open-text { display: block; }
 .os-title { display: block; font-weight: 700; color: var(--pine-deep); font-size: 1.02rem; }
 .os-note { display: block; margin-top: 0.1rem; }
-.os-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; color: var(--pine); font-size: 0.9rem; font-weight: 700; padding-top: 0.1rem; }
+.os-toggle {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; margin-top: 0.1rem;
+  padding: 4px 12px; border: 1px solid var(--pine); border-radius: 999px; line-height: 1.4;
+  background: var(--pine); color: #ffffff; font-size: 0.9rem; font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.output-settings-head:hover .os-toggle { background: var(--pine-deep); border-color: var(--pine-deep); }
+/* Expanded (收合): lighter pill so the open state reads differently from the filled collapsed one. */
+.output-settings.is-open .os-toggle { background: var(--pine-tint); border-color: var(--pine); color: var(--pine); }
+.output-settings.is-open .output-settings-head:hover .os-toggle { background: #cfe5e0; border-color: var(--pine); color: var(--pine); }
 .os-chevron { display: inline-flex; transition: transform 0.22s ease; }
 .output-settings.is-open .os-chevron { transform: rotate(180deg); }
 .output-settings-body { padding: 0.6rem 0.8rem 0.8rem; min-width: 0; border-top: 1px solid #bcd6d0; }
@@ -815,5 +824,6 @@ body:has(dialog[open]) { overflow: hidden; }
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
   .ocr-scanline { display: none; }
   .os-chevron { transition: none; }
+  .os-toggle { transition: none; }
   .ocr-bar.is-indeterminate .ocr-bar-fill { animation: none; left: 0; width: 100%; opacity: 0.4; }
 }
