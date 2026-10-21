@@ -14,6 +14,8 @@
  * Guards that reject a candidate outright: a degree word before an adjective-like surname character
  * (有高、較高), a rate or measurement word after it (高活存率), and a quantity after 萬 (金萬元).
  * Author lists of references (城振誠 , 蔡萬生 (2005)) are read by their year, not by their separators.
+ * Dual-use given characters (來 得 和 為 以 之 也 於) are name characters only with a strong cue, inside a list or
+ * citation chain, or under the no-cue gate in dualNoCueOk (a single surname plus two given characters).
  */
 import {
   AFTER_GREET,
@@ -27,6 +29,10 @@ import {
   DEGREE_BEFORE,
   DEGREE_HOMOGRAPHS,
   DETERMINERS,
+  DUAL_FUNCTION_AFTER,
+  DUAL_FUNCTION_BEFORE,
+  DUAL_SUFFIX,
+  GIVEN_DUAL,
   GIVEN_EXT,
   GIVEN_HIGH,
   GIVEN_MED,
@@ -81,6 +87,8 @@ const MARKERS = new Set([...'*†‡']);
 const LIST_END_BONUS = 0.4;
 /** Penalty for a candidate followed closely by a taxon or noun suffix (安波托蝦: the shrimp, not a person). */
 const SUFFIX_PENALTY = -1.5;
+/** Score of a dual-use given character (來, 得, 和…): it is a name character only under the gate in dualNoCueOk. */
+const DUAL_SCORE = 0.4;
 
 const BEFORE_STRONG_SET = new Set(BEFORE_STRONG);
 const DEGREE_BEFORE_SET = new Set(DEGREE_BEFORE);
@@ -110,7 +118,42 @@ const isDigit = (ch: string | undefined): boolean => ch !== undefined && (/[0-9�
 /** Score of one given-name character, or null when the character never appears in a given name. */
 function givenScore(ch: string): number | null {
   if (GIVEN_NEVER.has(ch)) return null;
+  if (GIVEN_DUAL.has(ch)) return DUAL_SCORE;
   return GIVEN_SCORE.get(ch) ?? -0.6;
+}
+
+/** True when the character is a known given-name character of any tier, dual-use ones included. */
+function givenKnown(ch: string): boolean {
+  return GIVEN_SCORE.has(ch) || GIVEN_DUAL.has(ch);
+}
+
+/**
+ * Without a strong cue, a dual character (來 得 和 為 以 之 也 於) is accepted only in a single-character surname
+ * plus two given-name characters, and only when:
+ *   - as the last character (蔡萬來): the middle character is a HIGH or MED given-name character;
+ *   - as the middle character (陳來福): the last character is HIGH and the two-character tail is not a word;
+ *   - the name is not followed by a function continuation (陳光來自, 黃金來源) nor preceded by one (從黃金來);
+ *     a middle-dual name is checked for suffixes only (包為靜態).
+ */
+function dualNoCueOk(text: string, start: number, end: number): boolean {
+  const g1 = text[start + 1];
+  const g2 = text[start + 2];
+  const d1 = GIVEN_DUAL.has(g1);
+  const d2 = GIVEN_DUAL.has(g2);
+  if (d1 === d2) return false;
+  if (d2) {
+    const mid = GIVEN_SCORE.get(g1);
+    if (mid !== 1 && mid !== 0.4) return false;
+  } else {
+    if (GIVEN_SCORE.get(g2) !== 1) return false;
+    if (LEXICON.has(text.slice(start + 1, end))) return false;
+  }
+  // After a name ending in the dual character, function words count (蔡萬來自); after a middle-dual name only suffixes do (包為靜態),
+  // since 陳來福回報, 林來興說 are name subjects.
+  const after = text[end] ?? '';
+  if (DUAL_SUFFIX.has(after) || (d2 && DUAL_FUNCTION_AFTER.has(after))) return false;
+  if (start > 0 && DUAL_FUNCTION_BEFORE.has(text[start - 1])) return false;
+  return true;
 }
 
 /** Evidence from the text right before the candidate (a label, a role, a determiner, a digit). */
@@ -217,6 +260,8 @@ function prefixPenalty(text: string, start: number): number {
 }
 
 const CELL_BREAK = new Set(['\t', '\n', '\r']);
+/** Sentence-final punctuation: a list item that ends here is complete (…黃金來。). */
+const SENTENCE_END = new Set([...'。！？!?']);
 
 /** True when the span is the only text between cell or line breaks. */
 function isWholeCell(text: string, start: number, end: number): boolean {
@@ -225,7 +270,7 @@ function isWholeCell(text: string, start: number, end: number): boolean {
 
 /** True when every given-name character is one the lists know (not just unrecognised). */
 function allKnownGiven(text: string, from: number, to: number): boolean {
-  for (let k = from; k < to; k++) if (!GIVEN_SCORE.has(text[k])) return false;
+  for (let k = from; k < to; k++) if (!givenKnown(text[k])) return false;
   return true;
 }
 
@@ -262,6 +307,12 @@ function scoreName(text: string, start: number, surnameLen: number, base: number
   const after = afterScore(text, end);
   // A label right before (姓名：, 申請人) or a title, greeting or verb-free cue after is what makes a bare two-character string a name.
   const strongCue = strongLabel || after >= 1.5;
+  // 來、得、和…: a dual-use given character needs a strong cue, or the no-cue gate for a single surname plus two given characters.
+  let hasDual = false;
+  for (let k = start + surnameLen; k < end; k++) if (GIVEN_DUAL.has(text[k])) hasDual = true;
+  if (hasDual && !strongCue && !(surnameLen === 1 && givenLen === 2 && dualNoCueOk(text, start, end))) return null;
+  // A rare surname with a dual character needs a title or greeting after it: 甲方應於 is a label and a verb, not 應於.
+  if (hasDual && surnameLen === 1 && base === RARE_BASE && after < 1.5) return null;
   // 有高活存率, 較高存活率: an adjective-like surname character after a degree word is not a surname without a cue.
   if (surnameLen === 1 && !strongCue && DEGREE_HOMOGRAPHS.has(text[start]) && precededByDegree(text, start)) return null;
   // 高活存率, 高死亡率: the candidate is the front of a science term.
@@ -269,7 +320,7 @@ function scoreName(text: string, start: number, surnameLen: number, base: number
   // 金萬元, 陳萬分: a quantity, not a name.
   if (amountBlocked(text, start, end)) return null;
   // 蔡萬來: a two-character reading that stops before a character no given name can contain is a fragment of a longer name.
-  if (surnameLen === 1 && givenLen === 1 && !strongCue && GIVEN_NEVER.has(text[end] ?? '') && GIVEN_SCORE.get(text[end - 1]) === 0.4) return null;
+  if (surnameLen === 1 && givenLen === 1 && !strongCue && (GIVEN_NEVER.has(text[end] ?? '') || GIVEN_DUAL.has(text[end] ?? '')) && GIVEN_SCORE.get(text[end - 1]) === 0.4) return null;
   // Rare surnames (城, 賀, 華…) are common characters in prose: they need a strong cue or a name list.
   if (surnameLen === 1 && base === RARE_BASE && !strongCue) return null;
   // A bare two-character candidate needs a common or medium given-name character; extension-only ones need a cue.
@@ -302,15 +353,17 @@ interface Run {
 
 /** Han runs in text order. List connectors (與和及) end a run, so 梁凱翔及薛雅芳 gives two runs. */
 function hanRuns(text: string): Run[] {
+  // 和 starts a word in 李和平 or 和解, so it is not a connector there.
+  const isConnector = (k: number) => LIST_SEPARATORS.has(text[k]) && !(text[k] === '和' && LEXICON.has(text.slice(k, k + 2)));
   const runs: Run[] = [];
   let i = 0;
   while (i < text.length) {
-    if (!isHan(text[i]) || LIST_SEPARATORS.has(text[i])) {
+    if (!isHan(text[i]) || isConnector(i)) {
       i++;
       continue;
     }
     const start = i;
-    while (i < text.length && isHan(text[i]) && !LIST_SEPARATORS.has(text[i])) i++;
+    while (i < text.length && isHan(text[i]) && !isConnector(i)) i++;
     runs.push({ start, end: i });
   }
   return runs;
@@ -462,7 +515,11 @@ export function detectChineseNames(text: string): NameSpan[] {
   };
 
   const acceptListItems = (chain: Run[]) => {
-    const confident = chain.filter((r) => accepted.get(r.start)?.end === r.end).length;
+    // An item counts as confident when an accepted name ends where it ends (本案證人為王得勝、…: 王得勝 ends the item).
+    const confident = chain.filter((r) => {
+      const s = endingAt.get(r.end);
+      return s !== undefined && s >= r.start;
+    }).length;
     if (confident < 2) return;
     for (const r of chain) {
       if (accepted.get(r.start)?.end === r.end) continue;
@@ -471,6 +528,11 @@ export function detectChineseNames(text: string): NameSpan[] {
       const str = text.slice(r.start, r.end);
       if (LEXICON.has(str) || TAXON_SUFFIX.has(text[r.end - 1])) continue;
       if ([...str.slice(1)].some((c) => GIVEN_NEVER.has(c))) continue;
+      // A list item that ends in a dual character and runs on into more text (薛雅芳於2022年) is a verb or phrase, not a name.
+      if (GIVEN_DUAL.has(text[r.end - 1])) {
+        const next = skipMarkers(text, r.end);
+        if (!atItemBoundary(text, next) && !SENTENCE_END.has(text[next])) continue;
+      }
       for (let k = r.start; k < r.end; k++) unaccept(k);
       accept(r.start, r.end, confident >= 3 ? 'high' : 'low');
     }
@@ -500,7 +562,7 @@ export function detectChineseNames(text: string): NameSpan[] {
       item = citedAuthorAt(text, gapEnd);
     }
     if (chain.length === 0) continue;
-    if (chain.length === 1 && ![...text.slice(chain[0].start + 1, chain[0].end)].every((ch) => GIVEN_SCORE.has(ch))) continue;
+    if (chain.length === 1 && ![...text.slice(chain[0].start + 1, chain[0].end)].every(givenKnown)) continue;
     for (const r of chain) forceAccept(r.start, r.end, 'high');
   }
 

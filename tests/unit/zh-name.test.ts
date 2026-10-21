@@ -339,3 +339,84 @@ describe('zh-name: author lists of references, read by their year', () => {
     expect(names('黃鰭鮪 (2010) 的漁獲資料')).toEqual([]);
   });
 });
+
+describe('zh-name: dual-use given characters (來 得 和 為 以 之 也 於)', () => {
+  it('reads 蔡萬來 before a citation year (2005)', () => {
+    expect(names('蔡萬來 (2005) 提出的結果')).toEqual(['蔡萬來']);
+    expect(names('相關研究可參考蔡萬來（2005）之結果。')).toEqual(['蔡萬來']);
+  });
+
+  it('reads 蔡萬來 after a label (承辦人：蔡萬來)', () => {
+    expect(names('承辦人：蔡萬來')).toEqual(['蔡萬來']);
+  });
+
+  it('reads 陳來福 before 先生', () => {
+    expect(names('陳來福先生於週一提出申請。')).toEqual(['陳來福']);
+  });
+
+  it('reads 林來興 and 黃金來 inside a name list', () => {
+    expect(names('出席者：王大明、李美玲、林來興、黃金來。')).toEqual(['王大明', '李美玲', '林來興', '黃金來']);
+  });
+
+  it('reads 王得勝 before 經理 and 張為民 before 教授', () => {
+    expect(names('王得勝經理已核准此案。')).toEqual(['王得勝']);
+    expect(names('張為民教授指導本研究。')).toEqual(['張為民']);
+  });
+
+  it('reads 蔡萬來 in a bare request, since 於 after a name is a name subject (請蔡萬來於週五前回覆)', () => {
+    expect(names('請蔡萬來於週五前回覆')).toEqual(['蔡萬來']);
+  });
+
+  it('reads a name with a dual character as the middle character when the last is HIGH (陳來福 bare)', () => {
+    expect(names('陳來福回報進度。')).toEqual(['陳來福']);
+  });
+
+  it('reads 李和平 with a title, but not bare (和平 is an ordinary word)', () => {
+    expect(names('李和平先生來電詢問。')).toEqual(['李和平']);
+    expect(names('李和平')).toEqual([]);
+  });
+
+  it('reads a list whose last item is followed by sentence punctuation (…、黃金來。)', () => {
+    expect(names('本案證人為王得勝、蔡萬來、李和平。')).toEqual(['王得勝', '蔡萬來', '李和平']);
+  });
+
+  it('rejects an ordinary phrase with a surname character and a dual character', () => {
+    for (const text of [
+      '王來自台北，於昨日抵達。',
+      '陳述來說，本案尚未確定。',
+      '林業以來持續成長。',
+      '高溫帶來的影響很大。',
+      '黃金來源多元，價格穩定。',
+      '方法得到驗證後才能推廣。',
+      '周和平時多在家中休息。',
+      '成為主要供應商的條件很多。',
+      '金額為新臺幣十萬元整。',
+      '江河以東地區降雨較多。',
+      '所有依賴打包為靜態資產，可任意部署。',
+      '高於英文重讀門檻時採用該結果。',
+      '我們從黃金來的人手中取得資料。',
+      '陳光來自哪裡，目前尚不清楚。',
+      '王中之王的稱號。',
+    ]) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('rejects a two-character surname plus dual reading without a cue (王來, 蔡萬)', () => {
+    expect(names('王來')).toEqual([]);
+    expect(names('蔡萬來電')).toEqual([]);
+  });
+
+  it('rejects a name that a function word or phrase follows (蔡萬來自己, 陳光來說 as a phrase)', () => {
+    expect(names('蔡萬來自己完成。')).toEqual([]);
+  });
+
+  it('does not take a trailing 於 into a list item that runs on into more text (薛雅芳於2022年)', () => {
+    expect(names('梁凱翔及薛雅芳於2022年共同發表此研究。')).toEqual(['梁凱翔', '薛雅芳']);
+  });
+
+  it('keeps the existing rules: 甲方應於 and 乙方應於 are not names', () => {
+    expect(names('甲方應於簽約後十日內付款。')).toEqual([]);
+    expect(names('乙方應於每月五日前匯入租金。')).toEqual([]);
+  });
+});

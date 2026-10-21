@@ -21,16 +21,46 @@ export const GIVEN_HIGH =
 
 /** Given-name characters that also appear in ordinary words, or are common enough in names to count. */
 export const GIVEN_MED =
-  '萬福上丞介允充夫尉守富存宣尊巍川帆得御微憲收政效敬育荀譚邦鉅閎雋麟鶴男直相禹穩竑洪湧灝炎煥燁理生民湧直育良莉蒙進郁陽隆鈞鉅錦鋒錫鵬龍熊翠浩湘晴蕭芃苡澤豫嶠諄碩蓁韶炳勇庚章耀琛鈞中大小天平安正光生德善祿壽金木水火土山雨林森海河江春秋冬夏東西南北永長新良武昊然恆世立一二三四五六七八星月玉王陳李黃吳劉蔡楊許鄭謝郭洪邱曾廖賴徐周葉蘇莊呂朱鍾彭胡沈盧趙顏方高石田白程嚴古甘牛毛馬丁凌官辛祝余柳童陸孫梁唐溫管尤舒康紀連簡施安包易喬史杜卓湯殷義貴恩泉川峯杰岳兆仲伯季叔展宣巧青綠紅藍銀若芬芳奇奎夢婕婕婉宣慶旭旻昭朋朗柯樺模沛洲淨淡湘滿潤焰熊玟珍瑤瑛瑪璟瓊甄疆盈眾秉維秀英烈珍聿睿耘芷茜茵菁蓉蔓覺詠豫賓逸進竹花菊袁如承日';
+  '萬福上丞介允充夫尉守富存宣尊巍川帆御微憲收政效敬育荀譚邦鉅閎雋麟鶴男直相禹穩竑洪湧灝炎煥燁理生民湧直育良莉蒙進郁陽隆鈞鉅錦鋒錫鵬龍熊翠浩湘晴蕭芃苡澤豫嶠諄碩蓁韶炳勇庚章耀琛鈞中大小天平安正光生德善祿壽金木水火土山雨林森海河江春秋冬夏東西南北永長新良武昊然恆世立一二三四五六七八星月玉王陳李黃吳劉蔡楊許鄭謝郭洪邱曾廖賴徐周葉蘇莊呂朱鍾彭胡沈盧趙顏方高石田白程嚴古甘牛毛馬丁凌官辛祝余柳童陸孫梁唐溫管尤舒康紀連簡施安包易喬史杜卓湯殷義貴恩泉川峯杰岳兆仲伯季叔展宣巧青綠紅藍銀若芬芳奇奎夢婕婕婉宣慶旭旻昭朋朗柯樺模沛洲淨淡湘滿潤焰熊玟珍瑤瑛瑪璟瓊甄疆盈眾秉維秀英烈珍聿睿耘芷茜茵菁蓉蔓覺詠豫賓逸進竹花菊袁如承日';
 
 /**
  * Characters that never appear inside a given name: function words, measure words, numerals used
  * as units, and common nouns or verbs of administrative text. A candidate that uses one is rejected.
  */
 export const GIVEN_NEVER = new Set(
-  [...'的了是在有和與及或共約為於之其所以等對將被把讓給從向由係即亦並另也則未不無非自經卻還又再但而才都皆均便就會能可須要想願到來去至收付持稱接提說表指認出簽辦負擔購支領遞回聯通告這那該此每各們呢嗎吧啊麼什怎很太最先女請使當若個本同重格式制度權額費率務量數值件案段巷弄樓室戶頁節篇冊份張隻次場筆期日時分秒年元千百億九十兩號條項款序表師員人事物部門處組會局院署區縣市鄉村里路街月約共限防規則策劃報函證契合設備求送收件']
+  [...'的了是在有與及或共約其所等對將被把讓給從向由係即亦並另則未不無非自經卻還又再但而才都皆均便就會能可須要想願到去至收付持稱接提說表指認出簽辦負擔購支領遞回聯通告這那該此每各們呢嗎吧啊麼什怎很太最先女請使當若個本同重格式制度權額費率務量數值件案段巷弄樓室戶頁節篇冊份張隻次場筆期日時分秒年元千百億九十兩號條項款序表師員人事物部門處組會局院署區縣市鄉村里路街月約共限防規則策劃報函證契合設備求送收件']
 );
 
+
+/**
+ * Dual-use given-name characters: common in Taiwanese given names (來福, 得勝, 和平, 為民, 之豪) but far more
+ * often function words (來說, 得到, 和平, 為了, 以及, 之後). A name with one of them is accepted only under the
+ * rules in zh-name.ts (dualNoCueOk): with a strong cue, inside a name list, or in a citation author chain.
+ */
+export const GIVEN_DUAL = new Set([...'來得和為以之也於']);
+
+/** Without a strong cue, a name followed by one of these is a phrase, not a name (陳光來自, 黃金來源, 王光來說). */
+export const DUAL_FUNCTION_AFTER = new Set([
+  ...'自說源看到的了往臨去回電信越愈更及將是在有個次時後前年月日會能要已又也或並就才都還最很而所等',
+]);
+
+/** Suffix characters of ordinary nouns (靜態, 得分率): a name followed by one is the front of a longer word. */
+export const DUAL_SUFFIX = new Set([...'態化式率量度性值比數期型法']);
+
+/** Without a strong cue, a name preceded by one of these is a phrase (從黃金來, 以陳光來). */
+export const DUAL_FUNCTION_BEFORE = new Set([...'從以未帶看近原本向由起將自往到']);
+
+/** Ordinary words that contain a dual character (來自, 和平, 為了, 以及…). They join LEXICON. */
+export const DUAL_LEXICON = (
+  `來自 來說 來源 來電 來信 來函 來訪 來賓 來臨 來回 來往 來不及 來得及 來客 來年 來日 來意 來文 來件 來到 來人 來者 來世 來路
+    歸來 招來 引來 迎來 找來 拿來 送來 寄來 傳來 聽來 想來 帶來 未來 以來 看來 近來 原來 本來 往來 將來 後來 起來 出來
+    進來 回來 過來 下來 上來 得到 得知 獲得 取得 覺得 得以 得出 得失 得分 得獎 得主 和平 和解 和諧 和睦 和氣 和好 和緩
+    和約 和樂 總和 談和 附和 和風 和聲 和善 和藹 和順 和洽 以為 認為 作為 成為 行為 為了 為何 為此 為主 為首 為期 為止
+    為人 為難 為數 為準 為例 為時 因為 所為 以及 以上 以下 以前 以後 以內 以外 以東 以西 以南 以北 以致 以免 以至 以便
+    以往 之後 之前 之一 之間 總之 之類 之外 之內 之上 之下 之中 之所 之處 之故 之際 之於 也許 也是 也就 也會 於是 由於
+    王中之王 等於 位於 至於 對於 基於 屬於 關於 易於 善於 難於 有助於 高於 低於 多於 少於 大於 小於 優於 劣於 強於 弱於
+    遠於 異於 次於 近於 忙於 限於 止於 出於 源於 歸於 終於 致力於 專注於 有賴於`
+).split(/\s+/).filter((w) => w.length >= 2);
 
 /** Words that come right before a name in a label or role (strong: the next capitalised run is a name). */
 export const BEFORE_STRONG = [
@@ -78,8 +108,7 @@ export const LIST_SEPARATORS = new Set([...'、與和及']);
  * Ordinary words that contain a surname character. A word that starts at the candidate's first
  * character (or covers it from earlier in the text) counts against the candidate.
  */
-export const LEXICON = new Set(
-  (
+const BASE_LEXICON = (
     // 陳 林 黃 張 李 王 吳 劉 蔡 楊 許 鄭 謝 郭 洪 邱 曾 廖 賴 徐 周 葉 蘇 莊 呂 江 何 蕭 羅 高 潘 簡 朱 鍾 游 彭 詹 胡 施 沈 余 盧 梁 趙 顏 柯 翁 魏 孫 戴 范 方 宋 鄧 杜 傅 侯 曹 薛 丁 卓 阮 馬 董 溫 唐 藍 蔣 石 古 紀 姚 連 馮 歐 程 湯 田 康 姜 白 汪 鄒 尤 巫 鐘 黎 塗 龔 嚴 韓 袁 金 童 陸 夏 柳 邵 錢 伍 倪 甘 秦 官 辛 戚 易 祝 樊 喬 向 殷 凌 闕 舒 包 鮑 冉 牛 管 毛
     `活存 活存率 存活 存活率 成活率 孵化率 死亡率 成長率 變態率 攝食率 轉換率
     陳述 陳列 陳舊 陳設 陳情 陳報 陳說 陳腐 陳年 陳放 陳列室
@@ -218,8 +247,10 @@ export const LEXICON = new Set(
 
 
     `
-    ).split(/\s+/).filter((w) => w.length >= 2),
-);
+    ).split(/\s+/).filter((w) => w.length >= 2);
+
+/** Ordinary words that contain a surname character or a dual character; a candidate that runs into one is rejected. */
+export const LEXICON = new Set([...BASE_LEXICON, ...DUAL_LEXICON]);
 
 
 /**
