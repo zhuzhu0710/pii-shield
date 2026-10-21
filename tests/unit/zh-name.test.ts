@@ -245,3 +245,97 @@ describe('zh-name: generalisation beyond the owner examples', () => {
     expect(names('作者：謝承楓、鍾博文、林佳翰')).toEqual(['謝承楓', '鍾博文', '林佳翰']);
   });
 });
+
+describe('zh-name: owner report, 高 after a degree word and rate words (活存率)', () => {
+  it('does not flag 高活存 in 能同時有高活存率及成長 (有 before 高)', () => {
+    expect(names('能同時有高活存率及成長')).toEqual([]);
+  });
+
+  it('does not flag 高活存 in 可以同時擁有高活存率及成長 (擁有 before 高)', () => {
+    expect(names('可以同時擁有高活存率及成長')).toEqual([]);
+  });
+
+  it('does not flag 高活存 when both owner sentences occur in one paper (the repeat rule used to accept it)', () => {
+    const paper = '能同時有高活存率及成長的品系較佳。\n可以同時擁有高活存率及成長，是主要目標。';
+    expect(names(paper)).toEqual([]);
+  });
+
+  it('generalises: a degree word before 高 blocks it, unless a strong cue follows', () => {
+    for (const text of ['較高存活率', '最高存活率', '很高的死亡率', '具有高成長率', '維持高存活率']) {
+      expect(names(text), text).toEqual([]);
+    }
+    expect(names('有高明先生參加')).toEqual(['高明']);
+  });
+
+  it('generalises: a surname-like character before a rate or measurement word is a science term (高死亡率, 成長率)', () => {
+    for (const text of ['高死亡率明顯', '高成長率的品系', '成活率與孵化率', '變態率', '攝食率偏低']) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('does not flag 低死亡率 or 較高存活率 in any sentence', () => {
+    expect(names('低死亡率的池區')).toEqual([]);
+    expect(names('較高存活率出現在第三週')).toEqual([]);
+  });
+});
+
+describe('zh-name: 萬 as a given-name character, and quantities that contain 萬', () => {
+  it('reads 鍾萬財 in full', () => {
+    expect(names('鍾萬財完成實驗')).toEqual(['鍾萬財']);
+  });
+
+  it('reads 林萬福 when followed by a year in a reference', () => {
+    expect(names('林萬福 (2010)')).toEqual(['林萬福']);
+  });
+
+  it('reads 蔡萬生 as the last author of a reference list', () => {
+    expect(names('城振誠 , 蔡萬生 (2005) 餌料、投餵策略')).toEqual(['城振誠', '蔡萬生']);
+  });
+
+  it('does not flag 萬元, 一萬 or 十萬元', () => {
+    for (const text of ['萬元', '一萬', '十萬元', '繳交1萬元', '保證金新臺幣十萬元整', '一萬尾鰻苗']) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('does not flag a surname followed by an amount (陳萬元, 金萬分)', () => {
+    expect(names('陳萬元整')).toEqual([]);
+    expect(names('現金萬分之一')).toEqual([]);
+  });
+});
+
+describe('zh-name: author lists of references, read by their year', () => {
+  it('reads a spaced half-width comma list before (year)', () => {
+    expect(names('黃振宇 , 鍾萬財 (2008) 白蝦養殖')).toEqual(['黃振宇', '鍾萬財']);
+  });
+
+  it('reads a full-width comma list before （year） with full-width parentheses', () => {
+    expect(names('黃振宇，鍾萬財（2008）以生物濾池改善水質')).toEqual(['黃振宇', '鍾萬財']);
+  });
+
+  it('reads a list separated by spaces only', () => {
+    expect(names('林福泰 蔡萬生 (2010) 探討草蝦幼苗')).toEqual(['林福泰', '蔡萬生']);
+  });
+
+  it('reads a list separated by 、 before (year)', () => {
+    expect(names('郭俊良、黃振宇、鍾萬財（2011）')).toEqual(['郭俊良', '黃振宇', '鍾萬財']);
+  });
+
+  it('reads the last author with no space before the parenthesis (蔡萬生(2013))', () => {
+    expect(names('蔡萬生(2013)之研究')).toEqual(['蔡萬生']);
+  });
+
+  it('reads a name run after a word without a separator (作者蔡萬生 (2005))', () => {
+    expect(names('作者蔡萬生 (2005)')).toEqual(['蔡萬生']);
+  });
+
+  it('keeps in-text citations of surname and 等 or 與 undetected', () => {
+    for (const text of ['前人研究（城等, 2010）指出', '(城等, 2010)', '(陳與林, 2015)', '林與王 (2018) 提出', '（周等，2020）的討論']) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('does not take a species name before a year as an author (黃鰭鮪 (2010))', () => {
+    expect(names('黃鰭鮪 (2010) 的漁獲資料')).toEqual([]);
+  });
+});

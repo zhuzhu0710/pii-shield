@@ -10,6 +10,10 @@
  * The best-scoring length wins per start. Afterwards, names in a list (甲、乙、丙) and every other
  * occurrence of an accepted name are accepted too, and a borderline string that repeats in the text is
  * accepted. Accepted spans carry 'high' or 'low' confidence.
+ *
+ * Guards that reject a candidate outright: a degree word before an adjective-like surname character
+ * (有高、較高), a rate or measurement word after it (高活存率), and a quantity after 萬 (金萬元).
+ * Author lists of references (城振誠 , 蔡萬生 (2005)) are read by their year, not by their separators.
  */
 import {
   AFTER_GREET,
@@ -17,8 +21,11 @@ import {
   AFTER_VERB,
   BEFORE_STRONG,
   BEFORE_WEAK,
+  AMOUNT_NEXT,
   COMPOUND_SURNAMES,
   CUE_TRIM,
+  DEGREE_BEFORE,
+  DEGREE_HOMOGRAPHS,
   DETERMINERS,
   GIVEN_EXT,
   GIVEN_HIGH,
@@ -29,6 +36,7 @@ import {
   LIST_SEPARATORS,
   ORDINARY_SURNAMES,
   RARE_SURNAMES,
+  RATE_SUFFIX,
   STRONG_SURNAMES,
   TAXON_SUFFIX,
 } from './zh-name-data';
@@ -75,6 +83,7 @@ const LIST_END_BONUS = 0.4;
 const SUFFIX_PENALTY = -1.5;
 
 const BEFORE_STRONG_SET = new Set(BEFORE_STRONG);
+const DEGREE_BEFORE_SET = new Set(DEGREE_BEFORE);
 const BEFORE_WEAK_SET = new Set(BEFORE_WEAK);
 const AFTER_TITLE_SET = new Set(AFTER_TITLE);
 const AFTER_VERB_SET = new Set(AFTER_VERB);
@@ -220,6 +229,32 @@ function allKnownGiven(text: string, from: number, to: number): boolean {
   return true;
 }
 
+/** True when a degree or possession word ends right before `start` (有高、較高、具有低), spaces aside. */
+function precededByDegree(text: string, start: number): boolean {
+  let k = start;
+  while (k > 0 && (text[k - 1] === ' ' || text[k - 1] === '\u3000')) k--;
+  for (let len = 4; len >= 1; len--) {
+    if (k - len < 0) continue;
+    if (DEGREE_BEFORE_SET.has(text.slice(k - len, k))) return true;
+  }
+  return false;
+}
+
+/** True when the candidate is followed by a rate or measurement suffix and forms a word with it (高活存率 → 活存率). */
+function rateWordBlocked(text: string, start: number, end: number): boolean {
+  const suffix = text[end];
+  if (suffix === undefined || !RATE_SUFFIX.has(suffix)) return false;
+  return LEXICON.has(text.slice(start + 1, end) + suffix) || LEXICON.has(text.slice(start, end) + suffix);
+}
+
+/** True when a 萬 inside the candidate is a quantity (金萬元, 陳萬分), not a given-name character. */
+function amountBlocked(text: string, start: number, end: number): boolean {
+  for (let p = start + 1; p < end; p++) {
+    if (text[p] === '萬' && AMOUNT_NEXT.has(text[p + 1])) return true;
+  }
+  return false;
+}
+
 /** Score of the name with the given surname and given-name length, or null when it cannot be a name. */
 function scoreName(text: string, start: number, surnameLen: number, base: number, givenLen: number, startContext: number, strongLabel: boolean): number | null {
   const end = start + surnameLen + givenLen;
@@ -227,6 +262,14 @@ function scoreName(text: string, start: number, surnameLen: number, base: number
   const after = afterScore(text, end);
   // A label right before (姓名：, 申請人) or a title, greeting or verb-free cue after is what makes a bare two-character string a name.
   const strongCue = strongLabel || after >= 1.5;
+  // 有高活存率, 較高存活率: an adjective-like surname character after a degree word is not a surname without a cue.
+  if (surnameLen === 1 && !strongCue && DEGREE_HOMOGRAPHS.has(text[start]) && precededByDegree(text, start)) return null;
+  // 高活存率, 高死亡率: the candidate is the front of a science term.
+  if (!strongCue && rateWordBlocked(text, start, end)) return null;
+  // 金萬元, 陳萬分: a quantity, not a name.
+  if (amountBlocked(text, start, end)) return null;
+  // 蔡萬來: a two-character reading that stops before a character no given name can contain is a fragment of a longer name.
+  if (surnameLen === 1 && givenLen === 1 && !strongCue && GIVEN_NEVER.has(text[end] ?? '') && GIVEN_SCORE.get(text[end - 1]) === 0.4) return null;
   // Rare surnames (城, 賀, 華…) are common characters in prose: they need a strong cue or a name list.
   if (surnameLen === 1 && base === RARE_BASE && !strongCue) return null;
   // A bare two-character candidate needs a common or medium given-name character; extension-only ones need a cue.
@@ -332,6 +375,41 @@ function bestAt(text: string, start: number): Candidate | null {
   return best;
 }
 
+/** Year in parentheses that follows an author list: (2005), （2005）, (2005a). */
+const CITE_YEAR = /[(（][ \u3000]*(?:19|20)\d\d[a-z]?[ \u3000]*[)）]/g;
+/** Characters that may sit between two authors of a reference list. */
+const AUTHOR_GAP_CHARS = new Set([' ', '\u3000', ',', '，', '、']);
+
+/** The separator between two authors: spaces, a 、 or ， (spaces optional), or a half-width comma with spaces. */
+function validAuthorGap(gap: string): boolean {
+  return /^[ \u3000]+$/.test(gap) || /^[ \u3000]*[、，][ \u3000]*$/.test(gap) || /^[ \u3000]+,[ \u3000]+$/.test(gap);
+}
+
+/** A 2–4 character author string: a surname character, then given-name characters that are not never-given. */
+function citedAuthorOk(str: string): boolean {
+  if (str.length < 2 || str.length > MAX_NAME_LENGTH || !SURNAME_ALL.has(str[0])) return false;
+  if (LEXICON.has(str) || TAXON_SUFFIX.has(str[str.length - 1])) return false;
+  for (const ch of str.slice(1)) if (GIVEN_NEVER.has(ch)) return false;
+  return true;
+}
+
+/** The longest author-like suffix of the Han run that ends at `e` (城振誠 before a year), or null. */
+function citedAuthorAt(text: string, e: number): Run | null {
+  let s = e;
+  while (s > 0 && e - s < MAX_NAME_LENGTH && isHan(text[s - 1]) && !LIST_SEPARATORS.has(text[s - 1])) s--;
+  for (let start = s; start <= e - 2; start++) {
+    if (citedAuthorOk(text.slice(start, e))) return { start, end: e };
+  }
+  return null;
+}
+
+/** Where the author before a valid separator ends (the separator starts at the returned index), or null. */
+function gapStartBefore(text: string, s: number): number | null {
+  let g = s;
+  while (g > 0 && s - g < 4 && AUTHOR_GAP_CHARS.has(text[g - 1])) g--;
+  return g < s && validAuthorGap(text.slice(g, s)) ? g : null;
+}
+
 /** Detects personal names in Traditional Chinese text. Returns non-overlapping spans in text order. */
 export function detectChineseNames(text: string): NameSpan[] {
   const candidates: Candidate[] = [];
@@ -378,6 +456,11 @@ export function detectChineseNames(text: string): NameSpan[] {
     if (endingAt.get(v.end) === s) endingAt.delete(v.end);
     for (let k = s; k < v.end; k++) taken[k] = 0;
   };
+  const forceAccept = (s: number, e: number, confidence: 'high' | 'low') => {
+    for (const [a, v] of [...accepted]) if (a < e && s < v.end) unaccept(a);
+    accept(s, e, confidence);
+  };
+
   const acceptListItems = (chain: Run[]) => {
     const confident = chain.filter((r) => accepted.get(r.start)?.end === r.end).length;
     if (confident < 2) return;
@@ -398,6 +481,27 @@ export function detectChineseNames(text: string): NameSpan[] {
     while (j + 1 < runs.length && joinedAsList(text, runs[j], runs[j + 1])) j++;
     if (j - i >= 2) acceptListItems(runs.slice(i, j + 1));
     i = j + 1;
+  }
+
+  // Pass 2c: author lists of a reference, read by the year that follows them (城振誠 , 蔡萬生 (2005)).
+  // The last author before "(year)" is a name when it is 2–4 characters starting with a surname character;
+  // the authors before it count while they are separated only by spaces, 、 or a spaced comma. A lone author
+  // must also have known given-name characters, so 黃鰭鮪 (2010) stays out.
+  for (const m of text.matchAll(CITE_YEAR)) {
+    const paren = m.index!;
+    let e = paren;
+    while (e > 0 && (text[e - 1] === ' ' || text[e - 1] === '\u3000')) e--;
+    const chain: Run[] = [];
+    let item = citedAuthorAt(text, e);
+    while (item) {
+      chain.push(item);
+      const gapEnd = gapStartBefore(text, item.start);
+      if (gapEnd === null) break;
+      item = citedAuthorAt(text, gapEnd);
+    }
+    if (chain.length === 0) continue;
+    if (chain.length === 1 && ![...text.slice(chain[0].start + 1, chain[0].end)].every((ch) => GIVEN_SCORE.has(ch))) continue;
+    for (const r of chain) forceAccept(r.start, r.end, 'high');
   }
 
   // Pass 3: every other occurrence of an accepted name (one scan over the text, names are 2–4 characters).

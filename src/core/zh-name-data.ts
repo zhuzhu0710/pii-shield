@@ -21,14 +21,14 @@ export const GIVEN_HIGH =
 
 /** Given-name characters that also appear in ordinary words, or are common enough in names to count. */
 export const GIVEN_MED =
-  '上丞介允充夫尉守富存宣尊巍川帆得御微憲收政效敬育荀譚邦鉅閎雋麟鶴男直相禹穩竑洪湧灝炎煥燁理生民湧直育良莉蒙進郁陽隆鈞鉅錦鋒錫鵬龍熊翠浩湘晴蕭芃苡澤豫嶠諄碩蓁韶炳勇庚章耀琛鈞中大小天平安正光生德善祿壽金木水火土山雨林森海河江春秋冬夏東西南北永長新良武昊然恆世立一二三四五六七八星月玉王陳李黃吳劉蔡楊許鄭謝郭洪邱曾廖賴徐周葉蘇莊呂朱鍾彭胡沈盧趙顏方高石田白程嚴古甘牛毛馬丁凌官辛祝余柳童陸孫梁唐溫管尤舒康紀連簡施安包易喬史杜卓湯殷義貴恩泉川峯杰岳兆仲伯季叔展宣巧青綠紅藍銀若芬芳奇奎夢婕婕婉宣慶旭旻昭朋朗柯樺模沛洲淨淡湘滿潤焰熊玟珍瑤瑛瑪璟瓊甄疆盈眾秉維秀英烈珍聿睿耘芷茜茵菁蓉蔓覺詠豫賓逸進竹花菊袁如承日';
+  '萬福上丞介允充夫尉守富存宣尊巍川帆得御微憲收政效敬育荀譚邦鉅閎雋麟鶴男直相禹穩竑洪湧灝炎煥燁理生民湧直育良莉蒙進郁陽隆鈞鉅錦鋒錫鵬龍熊翠浩湘晴蕭芃苡澤豫嶠諄碩蓁韶炳勇庚章耀琛鈞中大小天平安正光生德善祿壽金木水火土山雨林森海河江春秋冬夏東西南北永長新良武昊然恆世立一二三四五六七八星月玉王陳李黃吳劉蔡楊許鄭謝郭洪邱曾廖賴徐周葉蘇莊呂朱鍾彭胡沈盧趙顏方高石田白程嚴古甘牛毛馬丁凌官辛祝余柳童陸孫梁唐溫管尤舒康紀連簡施安包易喬史杜卓湯殷義貴恩泉川峯杰岳兆仲伯季叔展宣巧青綠紅藍銀若芬芳奇奎夢婕婕婉宣慶旭旻昭朋朗柯樺模沛洲淨淡湘滿潤焰熊玟珍瑤瑛瑪璟瓊甄疆盈眾秉維秀英烈珍聿睿耘芷茜茵菁蓉蔓覺詠豫賓逸進竹花菊袁如承日';
 
 /**
  * Characters that never appear inside a given name: function words, measure words, numerals used
  * as units, and common nouns or verbs of administrative text. A candidate that uses one is rejected.
  */
 export const GIVEN_NEVER = new Set(
-  [...'的了是在有和與及或共約為於之其所以等對將被把讓給從向由係即亦並另也則未不無非自經卻還又再但而才都皆均便就會能可須要想願到來去至收付持稱接提說表指認出簽辦負擔購支領遞回聯通告這那該此每各們呢嗎吧啊麼什怎很太最先女請使當若個本同重格式制度權額費率務量數值件案段巷弄樓室戶頁節篇冊份張隻次場筆期日時分秒年元萬千百億九十兩號條項款序表師員人事物部門處組會局院署區縣市鄉村里路街月約共限防規則策劃報函證契合設備求送收件']
+  [...'的了是在有和與及或共約為於之其所以等對將被把讓給從向由係即亦並另也則未不無非自經卻還又再但而才都皆均便就會能可須要想願到來去至收付持稱接提說表指認出簽辦負擔購支領遞回聯通告這那該此每各們呢嗎吧啊麼什怎很太最先女請使當若個本同重格式制度權額費率務量數值件案段巷弄樓室戶頁節篇冊份張隻次場筆期日時分秒年元千百億九十兩號條項款序表師員人事物部門處組會局院署區縣市鄉村里路街月約共限防規則策劃報函證契合設備求送收件']
 );
 
 
@@ -81,7 +81,8 @@ export const LIST_SEPARATORS = new Set([...'、與和及']);
 export const LEXICON = new Set(
   (
     // 陳 林 黃 張 李 王 吳 劉 蔡 楊 許 鄭 謝 郭 洪 邱 曾 廖 賴 徐 周 葉 蘇 莊 呂 江 何 蕭 羅 高 潘 簡 朱 鍾 游 彭 詹 胡 施 沈 余 盧 梁 趙 顏 柯 翁 魏 孫 戴 范 方 宋 鄧 杜 傅 侯 曹 薛 丁 卓 阮 馬 董 溫 唐 藍 蔣 石 古 紀 姚 連 馮 歐 程 湯 田 康 姜 白 汪 鄒 尤 巫 鐘 黎 塗 龔 嚴 韓 袁 金 童 陸 夏 柳 邵 錢 伍 倪 甘 秦 官 辛 戚 易 祝 樊 喬 向 殷 凌 闕 舒 包 鮑 冉 牛 管 毛
-    `陳述 陳列 陳舊 陳設 陳情 陳報 陳說 陳腐 陳年 陳放 陳列室
+    `活存 活存率 存活 存活率 成活率 孵化率 死亡率 成長率 變態率 攝食率 轉換率
+    陳述 陳列 陳舊 陳設 陳情 陳報 陳說 陳腐 陳年 陳放 陳列室
     林業 林地 林木 林場 林道 林口 樹林 森林 叢林 竹林 山林 密林 林區 林務 林野 林園
     黃金 黃色 黃昏 黃豆 黃牛 蛋黃 黃燈 黃褐色 黃埔 黃昏時
     張貼 張開 張力 主張 擴張 伸張 緊張 誇張 慌張 囂張 出張 開張 紙張 張望 張揚 張羅 張掛 張燈 膨張 張嘴
@@ -243,3 +244,21 @@ export const TAXON_SUFFIX = new Set([...'蝦魚蟹貝藻菌屬科種蟲草樹花
 
 /** Separators between the items of a list such as an author line (王大明・李美玲・張家豪). */
 export const ITEM_SEPARATORS = new Set([...'、，,•・·;；']);
+
+/**
+ * Ordinary surname characters that are also a common adjective or degree word (高 in 高活存, 較高, 高低).
+ * After a degree word (有、較、最…) they are an adjective, not a surname, unless a strong cue follows.
+ */
+export const DEGREE_HOMOGRAPHS = new Set([...'高方安常全成金白石江田']);
+
+/** Words that, right before a character, make it a degree or possession adjective (有高、較高、具有低). */
+export const DEGREE_BEFORE = [
+  '有', '擁有', '具有', '具', '較', '更', '最', '很', '極', '偏', '過', '頗', '相當', '呈', '達', '提高', '維持', '保持',
+  '增', '升', '的', '為', '是',
+];
+
+/** Characters that name a measurement or rate (活存率, 死亡率, 成長率…). A name before one of them is a science term. */
+export const RATE_SUFFIX = new Set([...'率量度性值比數期型法']);
+
+/** Characters that, right after 萬, make a quantity (萬元, 萬分, 萬人), not a given name. */
+export const AMOUNT_NEXT = new Set([...'元整以分人能物眾歲千百萬億年次圓起餘']);
