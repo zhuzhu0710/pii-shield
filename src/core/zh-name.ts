@@ -20,13 +20,17 @@ import {
   COMPOUND_SURNAMES,
   CUE_TRIM,
   DETERMINERS,
+  GIVEN_EXT,
   GIVEN_HIGH,
   GIVEN_MED,
   GIVEN_NEVER,
+  ITEM_SEPARATORS,
   LEXICON,
   LIST_SEPARATORS,
   ORDINARY_SURNAMES,
+  RARE_SURNAMES,
   STRONG_SURNAMES,
+  TAXON_SUFFIX,
 } from './zh-name-data';
 
 export interface NameSpan {
@@ -46,13 +50,29 @@ const REPEAT_MIN = 0.6;
 /** Longest name in characters: a compound surname plus two given-name characters. */
 const MAX_NAME_LENGTH = 4;
 
+/** Base score of a rare surname: it counts only with strong given-name evidence or inside a name list. */
+const RARE_BASE = -0.5;
+
 const SURNAME_BASE = new Map<string, number>();
 for (const c of STRONG_SURNAMES) SURNAME_BASE.set(c, 1.5);
 for (const c of ORDINARY_SURNAMES) SURNAME_BASE.set(c, 0.6);
+for (const c of RARE_SURNAMES) if (!SURNAME_BASE.has(c)) SURNAME_BASE.set(c, RARE_BASE);
+/** Every character that can start a name in some reading. */
+const SURNAME_ALL = new Set(SURNAME_BASE.keys());
 
+const GIVEN_EXT_SCORE = 0.6;
 const GIVEN_SCORE = new Map<string, number>();
 for (const c of GIVEN_MED) GIVEN_SCORE.set(c, 0.4);
 for (const c of GIVEN_HIGH) GIVEN_SCORE.set(c, 1);
+for (const c of GIVEN_EXT) if (!GIVEN_SCORE.has(c)) GIVEN_SCORE.set(c, GIVEN_EXT_SCORE);
+
+const SUPERSCRIPT_DIGITS = new Set([...'⁰¹²³⁴⁵⁶⁷⁸⁹']);
+/** Footnote and affiliation marks that follow an author's name. */
+const MARKERS = new Set([...'*†‡']);
+/** Bonus for a name that ends a list item (城振誠*、 or a name at the end of a line). */
+const LIST_END_BONUS = 0.4;
+/** Penalty for a candidate followed closely by a taxon or noun suffix (安波托蝦: the shrimp, not a person). */
+const SUFFIX_PENALTY = -1.5;
 
 const BEFORE_STRONG_SET = new Set(BEFORE_STRONG);
 const BEFORE_WEAK_SET = new Set(BEFORE_WEAK);
@@ -102,10 +122,28 @@ function beforeScore(text: string, start: number): number {
   return 0;
 }
 
+/** Index just past the footnote, affiliation or superscript marks that start at `from` (王大明1,2*). */
+function skipMarkers(text: string, from: number): number {
+  let k = from;
+  while (k < text.length) {
+    const ch = text[k];
+    if (isDigit(ch) || SUPERSCRIPT_DIGITS.has(ch) || MARKERS.has(ch)) k++;
+    else if (ch === ',' && isDigit(text[k - 1]) && isDigit(text[k + 1])) k++;
+    else break;
+  }
+  return k;
+}
+
+/** True at the end of a list item: end of text, a line break, or an item separator. */
+function atItemBoundary(text: string, k: number): boolean {
+  return k >= text.length || text[k] === '\n' || text[k] === '\r' || ITEM_SEPARATORS.has(text[k]);
+}
+
 /** Evidence from the text right after the candidate (a title, a greeting, a verb, digits). */
 function afterScore(text: string, end: number): number {
   // A digit touching the name (金大中3) is suspicious; a digit after a space (a table cell) is not.
-  if (isDigit(text[end])) return -1;
+  // Footnote digits that end a list item (陳彥愷1、) are marks, not table numbers.
+  if (isDigit(text[end]) && !atItemBoundary(text, skipMarkers(text, end))) return -1;
   let k = end;
   while (k < text.length && (text[k] === ' ' || text[k] === '\u3000')) k++;
   if (TITLE_FIRST.has(text[k])) {
@@ -126,6 +164,24 @@ function afterScore(text: string, end: number): number {
   return 0;
 }
 
+/**
+ * A candidate closely followed by a taxon or noun suffix is part of a longer noun (安波托蝦 is a shrimp).
+ * A cue right after the candidate (率領, 表示, 先生…) means it is a name after all.
+ */
+function suffixPenalty(text: string, end: number, after: number): number {
+  if (after > 0) return 0;
+  // Only the next two characters count: the suffix must sit right after the candidate (安波 + 托 + 蝦).
+  for (let k = end; k < Math.min(text.length, end + 2) && isHan(text[k]); k++) {
+    if (TAXON_SUFFIX.has(text[k])) return SUFFIX_PENALTY;
+  }
+  return 0;
+}
+
+/** A name that ends a list item, or a line, is probably complete (城振誠* before a separator). */
+function listEndBonus(text: string, end: number): number {
+  return atItemBoundary(text, skipMarkers(text, end)) ? LIST_END_BONUS : 0;
+}
+
 /** A lexicon word that starts earlier and covers the candidate's surname character (保證金 covers 金). */
 function coveredPenalty(text: string, start: number): number {
   if (!LEXICON_CHARS.has(text[start])) return 0;
@@ -133,16 +189,19 @@ function coveredPenalty(text: string, start: number): number {
     for (let len = 2; len <= 4; len++) {
       const e = j + len;
       if (e <= start || e > text.length) continue;
-      if (LEXICON.has(text.slice(j, e))) return -2;
+      if (LEXICON.has(text.slice(j, e))) return -3;
     }
   }
   return 0;
 }
 
-/** A lexicon word that starts at the candidate and is at most as long as the candidate (高達, 黃金生). */
-function prefixPenalty(text: string, start: number, length: number): number {
+/**
+ * A lexicon word that starts at the candidate (高達, 黃金生, 高麗菜 for 高麗): the candidate is then the
+ * front part of an ordinary word, not a name.
+ */
+function prefixPenalty(text: string, start: number): number {
   if (!LEXICON_FIRST.has(text[start])) return 0;
-  for (let k = 2; k <= length; k++) {
+  for (let k = 2; k <= MAX_NAME_LENGTH; k++) {
     if (LEXICON.has(text.slice(start, start + k))) return -3;
   }
   return 0;
@@ -162,9 +221,19 @@ function allKnownGiven(text: string, from: number, to: number): boolean {
 }
 
 /** Score of the name with the given surname and given-name length, or null when it cannot be a name. */
-function scoreName(text: string, start: number, surnameLen: number, base: number, givenLen: number, startContext: number): number | null {
+function scoreName(text: string, start: number, surnameLen: number, base: number, givenLen: number, startContext: number, strongLabel: boolean): number | null {
   const end = start + surnameLen + givenLen;
   if (end > text.length) return null;
+  const after = afterScore(text, end);
+  // A label right before (姓名：, 申請人) or a title, greeting or verb-free cue after is what makes a bare two-character string a name.
+  const strongCue = strongLabel || after >= 1.5;
+  // Rare surnames (城, 賀, 華…) are common characters in prose: they need a strong cue or a name list.
+  if (surnameLen === 1 && base === RARE_BASE && !strongCue) return null;
+  // A bare two-character candidate needs a common or medium given-name character; extension-only ones need a cue.
+  if (givenLen === 1 && surnameLen === 1 && !strongCue) {
+    const gs = GIVEN_SCORE.get(text[start + surnameLen]);
+    if (gs === undefined || gs === GIVEN_EXT_SCORE) return null;
+  }
   let score = base;
   for (let k = 0; k < givenLen; k++) {
     const ch = text[start + surnameLen + k];
@@ -173,14 +242,66 @@ function scoreName(text: string, start: number, surnameLen: number, base: number
     if (g === null) return null;
     score += g;
   }
-  const length = surnameLen + givenLen;
-  score += startContext + afterScore(text, end);
-  score += prefixPenalty(text, start, length);
+  score += startContext + after + suffixPenalty(text, end, after) + listEndBonus(text, end);
+  score += prefixPenalty(text, start);
   // A name that fills a whole table cell or line (a column of names in a spreadsheet) has a cue of its own.
   if (isWholeCell(text, start, end) && allKnownGiven(text, start + surnameLen, end)) score += 1;
   // A two-character given part that is an ordinary word (向主治 from 主治醫師) is not a given name.
   if (givenLen === 2 && LEXICON.has(text.slice(start + surnameLen, end))) score -= 2;
   return score;
+}
+
+/** A run of Han characters between punctuation, markers or list connectors: one item of a list. */
+interface Run {
+  start: number;
+  end: number;
+}
+
+/** Han runs in text order. List connectors (與和及) end a run, so 梁凱翔及薛雅芳 gives two runs. */
+function hanRuns(text: string): Run[] {
+  const runs: Run[] = [];
+  let i = 0;
+  while (i < text.length) {
+    if (!isHan(text[i]) || LIST_SEPARATORS.has(text[i])) {
+      i++;
+      continue;
+    }
+    const start = i;
+    while (i < text.length && isHan(text[i]) && !LIST_SEPARATORS.has(text[i])) i++;
+    runs.push({ start, end: i });
+  }
+  return runs;
+}
+
+/** True when two runs are joined only by a list separator or connector, with markers and spaces around it. */
+function joinedAsList(text: string, a: Run, b: Run): boolean {
+  if (b.start - a.end > 12) return false;
+  let sep = false;
+  for (let k = a.end; k < b.start; k++) {
+    const ch = text[k];
+    if (ITEM_SEPARATORS.has(ch) || LIST_SEPARATORS.has(ch)) sep = true;
+    else if (!isDigit(ch) && !SUPERSCRIPT_DIGITS.has(ch) && !MARKERS.has(ch) && ch !== ' ' && ch !== '　') return false;
+  }
+  return sep;
+}
+
+/**
+ * True when a string always comes before the same two characters (安波 is always followed by 托蝦):
+ * a repeated string with the same continuation is a word of the text, not a name. A cue after any
+ * occurrence (在, 表示, 先生…) means the string may well be a name.
+ */
+function alwaysSameContinuation(text: string, str: string): boolean {
+  let cont: string | null = null;
+  let n = 0;
+  for (let i = text.indexOf(str); i >= 0; i = text.indexOf(str, i + 1)) {
+    const end = i + str.length;
+    const next = text.slice(end, end + 2);
+    if ([...next].length < 2 || ![...next].every(isHan) || afterScore(text, end) > 0) return false;
+    if (cont === null) cont = next;
+    else if (next !== cont) return false;
+    n++;
+  }
+  return n >= 2;
 }
 
 interface Candidate {
@@ -198,10 +319,12 @@ function bestAt(text: string, start: number): Candidate | null {
   if (single !== undefined) options.push([1, single]);
   let best: Candidate | null = null;
   // Context before the name and words covering the surname character do not depend on the name's length.
-  const startContext = beforeScore(text, start) + coveredPenalty(text, start);
+  // A strong label right before the candidate (申請人馬韋辰) outweighs a lexicon word that covers its surname character.
+  const before = beforeScore(text, start);
+  const startContext = before + (before >= 2 ? 0 : coveredPenalty(text, start));
   for (const [surnameLen, base] of options) {
     for (let givenLen = 1; givenLen <= 2; givenLen++) {
-      const score = scoreName(text, start, surnameLen, base, givenLen, startContext);
+      const score = scoreName(text, start, surnameLen, base, givenLen, startContext, before >= 2);
       if (score === null) continue;
       if (!best || score >= best.score) best = { start, end: start + surnameLen + givenLen, score };
     }
@@ -246,6 +369,37 @@ export function detectChineseNames(text: string): NameSpan[] {
     if (c.score + LIST_BONUS >= ACCEPT) accept(c.start, c.end, c.score + LIST_BONUS >= HIGH_CONFIDENCE ? 'high' : 'low');
   }
 
+  // Pass 2b: a list of three or more items (an author line, a name list). Once two items are accepted names,
+  // the other items that start with a surname character are names too, taken whole (城振誠 before 吳玉霞…).
+  const unaccept = (s: number) => {
+    const v = accepted.get(s);
+    if (!v) return;
+    accepted.delete(s);
+    if (endingAt.get(v.end) === s) endingAt.delete(v.end);
+    for (let k = s; k < v.end; k++) taken[k] = 0;
+  };
+  const acceptListItems = (chain: Run[]) => {
+    const confident = chain.filter((r) => accepted.get(r.start)?.end === r.end).length;
+    if (confident < 2) return;
+    for (const r of chain) {
+      if (accepted.get(r.start)?.end === r.end) continue;
+      const len = r.end - r.start;
+      if (len < 2 || len > MAX_NAME_LENGTH || !SURNAME_ALL.has(text[r.start])) continue;
+      const str = text.slice(r.start, r.end);
+      if (LEXICON.has(str) || TAXON_SUFFIX.has(text[r.end - 1])) continue;
+      if ([...str.slice(1)].some((c) => GIVEN_NEVER.has(c))) continue;
+      for (let k = r.start; k < r.end; k++) unaccept(k);
+      accept(r.start, r.end, confident >= 3 ? 'high' : 'low');
+    }
+  };
+  const runs = hanRuns(text);
+  for (let i = 0; i < runs.length; ) {
+    let j = i;
+    while (j + 1 < runs.length && joinedAsList(text, runs[j], runs[j + 1])) j++;
+    if (j - i >= 2) acceptListItems(runs.slice(i, j + 1));
+    i = j + 1;
+  }
+
   // Pass 3: every other occurrence of an accepted name (one scan over the text, names are 2–4 characters).
   const names = new Map<string, 'high' | 'low'>();
   for (const [s, v] of accepted) {
@@ -274,7 +428,8 @@ export function detectChineseNames(text: string): NameSpan[] {
     }
     for (const c of candidates) {
       if (c.score < REPEAT_MIN || accepted.has(c.start) || !free(c.start, c.end)) continue;
-      if ((borderline.get(text.slice(c.start, c.end)) ?? 0) >= 2) accept(c.start, c.end, 'low');
+      const str = text.slice(c.start, c.end);
+      if ((borderline.get(str) ?? 0) >= 2 && !alwaysSameContinuation(text, str)) accept(c.start, c.end, 'low');
     }
   }
 

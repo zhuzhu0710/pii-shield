@@ -125,3 +125,123 @@ describe('zh-name: document-level behaviour', () => {
     expect(items[0].confidence).toBeUndefined();
   });
 });
+
+describe('zh-name: author lines of academic papers (owner report)', () => {
+  it('reads 吳玉霞 in full, not 吳玉 (霞 is a given-name character)', () => {
+    expect(names('吳玉霞•王崧華')).toEqual(['吳玉霞', '王崧華']);
+  });
+
+  it('reads 陳彥愷 in full, not 陳彥 (愷 is a given-name character)', () => {
+    expect(names('陳彥愷•王崧華')).toEqual(['陳彥愷', '王崧華']);
+  });
+
+  it('reads 陳彥楷 in full, not 陳彥 (楷 is a given-name character)', () => {
+    expect(names('陳彥楷•王崧華')).toEqual(['陳彥楷', '王崧華']);
+  });
+
+  it('reads 陳彥愷 in full when it is the third author of a list with affiliations', () => {
+    const text = '作者：吳玉霞1、王崧華1*、陳彥愷2';
+    expect(names(text)).toEqual(['吳玉霞', '王崧華', '陳彥愷']);
+  });
+
+  it('reads 陳彥楷 in full when it is the third author of a list with affiliations', () => {
+    const text = '作者：吳玉霞1、王崧華1*、陳彥楷2';
+    expect(names(text)).toEqual(['吳玉霞', '王崧華', '陳彥楷']);
+  });
+
+  it('reads the full author line, including rare surname 城 and the name 吳鍺湘', () => {
+    const line = '城振誠*•吳玉霞•王崧華•吳鍺湘•陳彥愷•謝恆毅';
+    expect(names(line)).toEqual(['城振誠', '吳玉霞', '王崧華', '吳鍺湘', '陳彥愷', '謝恆毅']);
+  });
+
+  it('reads 陳彥楷 in the full author line as well', () => {
+    const line = '城振誠*•吳玉霞•王崧華•吳鍺湘•陳彥楷•謝恆毅';
+    expect(names(line)).toEqual(['城振誠', '吳玉霞', '王崧華', '吳鍺湘', '陳彥楷', '謝恆毅']);
+  });
+
+  it('reads a rare-surname name in a list with other separators (・ 、 ， and superscript marks)', () => {
+    expect(names('城振誠・吳玉霞・王崧華')).toEqual(['城振誠', '吳玉霞', '王崧華']);
+    expect(names('城振誠、吳玉霞、王崧華')).toEqual(['城振誠', '吳玉霞', '王崧華']);
+    expect(names('城振誠，吳玉霞，王崧華')).toEqual(['城振誠', '吳玉霞', '王崧華']);
+    expect(names('城振誠¹•吳玉霞²•王崧華³')).toEqual(['城振誠', '吳玉霞', '王崧華']);
+  });
+
+  it('prefers the three-character reading when the third character ends a list item', () => {
+    expect(names('陳彥愷*、吳玉霞*、王崧華*')).toEqual(['陳彥愷', '吳玉霞', '王崧華']);
+  });
+
+  it('does not take the rare surname 城 from a citation of surname and 等 (城等, 2010)', () => {
+    expect(names('前人研究（城等, 2010）指出')).toEqual([]);
+    expect(names('(城等, 2016)')).toEqual([]);
+  });
+
+  it('keeps surname-only citations of the form 林與王 (2018) out', () => {
+    expect(names('林與王 (2018) 提出相同結論')).toEqual([]);
+  });
+
+  it('reads the names of a reference-list entry', () => {
+    expect(names('顏孟華、林金榮 (2010) 石斑魚人工繁殖技術之研究')).toEqual(['顏孟華', '林金榮']);
+  });
+});
+
+describe('zh-name: words that contain a surname character at the end (owner report)', () => {
+  it('does not flag 溫 in 水溫 (溫呈)', () => {
+    expect(names('水溫呈負相關')).toEqual([]);
+  });
+
+  it('does not flag 溫 in 水溫 (溫維)', () => {
+    expect(names('水溫維持在28度')).toEqual([]);
+  });
+
+  it('does not flag 謝 in 代謝 (謝速)', () => {
+    expect(names('代謝速率增加')).toEqual([]);
+  });
+
+  it('does not flag 林 in 樹林 and 高 in 最高 when a lexicon word covers the surname character', () => {
+    expect(names('樹林的面積逐年擴大')).toEqual([]);
+    expect(names('最高溫度出現在下午')).toEqual([]);
+  });
+
+  it('does not flag the species name 安波托蝦 (安波 was accepted from a repeated borderline string)', () => {
+    const text = '及安波托蝦、安波托蝦為主要養殖對象，安波托蝦的存活率較高。';
+    expect(names(text)).toEqual([]);
+  });
+
+  it('does not flag a taxon name after 及 (及安波托蝦)', () => {
+    expect(names('及安波托蝦')).toEqual([]);
+  });
+});
+
+describe('zh-name: generalisation beyond the owner examples', () => {
+  it('does not flag surname tails of other 水X and X度 science words', () => {
+    for (const text of ['氣溫升高', '體溫正常', '鹽度維持在', '溶解度降低', '室溫約25度', '地溫監測']) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('does not flag surname tails of other medical and biology words', () => {
+    for (const text of ['感謝您的協助', '致謝', '新陳代謝旺盛', '葉綠素含量', '林業試驗']) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('does not flag other taxon names that start with a surname character', () => {
+    for (const text of ['白蝦的產量', '金魚藻的生長', '黃鰭鮪的漁獲', '石斑魚苗', '高麗菜田', '李子樹的產量']) {
+      expect(names(text), text).toEqual([]);
+    }
+  });
+
+  it('reads a name inside a list of ordinary words only when two items are already names', () => {
+    expect(names('白蝦、金魚藻、王大明')).toEqual(['王大明']);
+    expect(names('白蝦、金魚藻、石斑魚')).toEqual([]);
+    expect(names('王大明、李美玲、白蝦、張家豪')).toEqual(['王大明', '李美玲', '張家豪']);
+  });
+
+  it('reads a name with a rare surname in a list of three names', () => {
+    expect(names('會議出席者包括王大明、李美玲、賀冠宇')).toEqual(['王大明', '李美玲', '賀冠宇']);
+  });
+
+  it('gives a given-name character from the extended set the same reading as a common one', () => {
+    expect(names('作者：謝承楓、鍾博文、林佳翰')).toEqual(['謝承楓', '鍾博文', '林佳翰']);
+  });
+});
